@@ -13,7 +13,6 @@
             --primary: #9333ea;
             --primary-gradient: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
             --accent-pink: #ec4899;
-            --accent-cyan: #06b6d4;
             --gold: #ffd700;
             --silver: #e2e8f0;
             --bronze: #d97706;
@@ -77,7 +76,7 @@
         .ranking-table td { padding: 14px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; }
         .ranking-table tr:hover td { background: var(--bg-card-hover); }
 
-        .rank-num { font-weight: 800; font-size: 0.95rem; width: 45px; }
+        .rank-num { font-weight: 800; font-size: 0.95rem; width: 55px; }
         .rank-1 { color: var(--gold); }
         .rank-2 { color: var(--silver); }
         .rank-3 { color: var(--bronze); }
@@ -90,7 +89,7 @@
         .tier-tag {
             display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .tier-gm { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid #f43f5e; box-shadow: 0 0 8px rgba(244, 63, 94, 0.3); }
+        .tier-gm { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid #f43f5e; }
         .tier-master { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid #c084fc; }
         .tier-diamond { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid #38bdf8; }
         .tier-platinum { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #34d399; }
@@ -113,9 +112,13 @@
         .page-btn:hover:not(:disabled) { background: #1f2333; color: #fff; border-color: var(--accent-pink); }
         .page-btn.active {
             background: var(--primary-gradient); color: #fff; border-color: transparent;
-            box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
         }
         .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        .jump-input {
+            width: 55px; background: #0c0e14; border: 1px solid var(--border-color);
+            color: #fff; text-align: center; border-radius: 6px; padding: 5px; font-size: 0.8rem; outline: none;
+        }
 
         .sidebar { display: flex; flex-direction: column; gap: 20px; }
 
@@ -264,10 +267,13 @@
 
     <script>
         const API_URL = "https://serein-69githubio-production.up.railway.app/api";
-        let cachedPlayers = JSON.parse(localStorage.getItem('crab_cached_leaderboard') || '[]');
 
         let currentPage = 1;
         const pageSize = 10;
+        let currentSearch = "";
+        let totalMatched = 0;
+        let globalTotal = 0;
+        let searchDebounceTimer = null;
 
         const I18N = {
             en: {
@@ -358,69 +364,60 @@
                 if (t[key]) el.placeholder = t[key];
             });
 
-            renderUI(document.getElementById('searchInput').value);
+            loadLeaderboard();
+        }
+
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API_URL}/stats`);
+                const result = await res.json();
+                if (result.status === "success") {
+                    const d = result.data;
+                    globalTotal = d.totalPlayers || 0;
+                    document.getElementById('statPlayers').innerText = d.totalPlayers.toLocaleString();
+                    document.getElementById('statMatches').innerText = (d.totalMatches || 0).toLocaleString();
+                    document.getElementById('statTopMMR').innerText = (d.topScore || 1000).toLocaleString();
+
+                    if (d.topPlayer) {
+                        const top1 = d.topPlayer;
+                        const top1Tier = getTierInfo(top1.score);
+                        document.getElementById('mvpName').innerText = top1.name;
+                        document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
+                        document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
+                        document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
+                    }
+                }
+            } catch (err) {
+                console.error("Stats Fetch Error:", err);
+            }
         }
 
         async function loadLeaderboard() {
             try {
-                const res = await fetch(`${API_URL}/leaderboard`);
+                const url = `${API_URL}/leaderboard?page=${currentPage}&limit=${pageSize}&search=${encodeURIComponent(currentSearch)}`;
+                const res = await fetch(url);
                 const result = await res.json();
-                if (result.status === "success") {
-                    let players = result.data || [];
-                    players.forEach((p, index) => {
-                        p.originalRank = index + 1;
-                    });
 
-                    cachedPlayers = players;
-                    localStorage.setItem('crab_cached_leaderboard', JSON.stringify(cachedPlayers));
-                    updateHeroStats();
-                    renderUI(document.getElementById('searchInput').value);
+                if (result.status === "success") {
+                    totalMatched = result.total || 0;
+                    renderTable(result.data || []);
+                    renderPagination(totalMatched);
                 }
             } catch (err) {
-                console.error("Fetch Error:", err);
+                console.error("Leaderboard Fetch Error:", err);
             }
         }
 
-        function updateHeroStats() {
-            document.getElementById('statPlayers').innerText = cachedPlayers.length.toLocaleString();
-            let totalMatches = cachedPlayers.reduce((acc, p) => acc + (p.matches || 0), 0);
-            document.getElementById('statMatches').innerText = totalMatches.toLocaleString();
-
-            if (cachedPlayers.length > 0) {
-                document.getElementById('statTopMMR').innerText = cachedPlayers[0].score.toLocaleString();
-
-                const top1 = cachedPlayers[0];
-                const top1Tier = getTierInfo(top1.score);
-                document.getElementById('mvpName').innerText = top1.name;
-                document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
-                document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
-                document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
-            }
-        }
-
-        function renderUI(query = "") {
+        function renderTable(players) {
             const tbody = document.getElementById('leaderboardBody');
-            const trimmedQuery = query.trim().toLowerCase();
-            
- 
-            const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(trimmedQuery));
-
             tbody.innerHTML = "";
 
-            if (list.length === 0) {
+            if (!players || players.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">No players found</td></tr>`;
-                renderPagination(0, 0, trimmedQuery);
                 return;
             }
 
-            const totalPages = Math.ceil(list.length / pageSize) || 1;
-            if (currentPage > totalPages) currentPage = totalPages;
-
-            const startIndex = (currentPage - 1) * pageSize;
-            const endIndex = startIndex + pageSize;
-            const pageList = list.slice(startIndex, endIndex);
-
-            pageList.forEach((p) => {！
+            players.forEach((p) => {
                 const rank = p.originalRank;
                 let rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "";
                 let rankIcon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
@@ -445,22 +442,20 @@
                 `;
                 tbody.appendChild(tr);
             });
-
-            renderPagination(list.length, cachedPlayers.length, trimmedQuery);
         }
 
-        function renderPagination(matchedCount, totalCount, query) {
+        function renderPagination(totalCount) {
             const controls = document.getElementById('paginationControls');
             const info = document.getElementById('paginationInfo');
-            const totalPages = Math.ceil(matchedCount / pageSize) || 1;
+            const totalPages = Math.ceil(totalCount / pageSize) || 1;
             const t = I18N[currentLang];
 
-            if (matchedCount === 0) {
+            if (totalCount === 0) {
                 info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
-            } else if (query) {
+            } else if (currentSearch) {
                 const start = (currentPage - 1) * pageSize + 1;
-                const end = Math.min(currentPage * pageSize, matchedCount);
-                info.innerText = `${t.pg_search_result} ${matchedCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${totalCount.toLocaleString()})`;
+                const end = Math.min(currentPage * pageSize, totalCount);
+                info.innerText = `${t.pg_search_result} ${totalCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${globalTotal.toLocaleString()})`;
             } else {
                 const start = (currentPage - 1) * pageSize + 1;
                 const end = Math.min(currentPage * pageSize, totalCount);
@@ -477,7 +472,7 @@
             prevBtn.onclick = () => {
                 if (currentPage > 1) {
                     currentPage--;
-                    renderUI(document.getElementById('searchInput').value);
+                    loadLeaderboard();
                 }
             };
             controls.appendChild(prevBtn);
@@ -499,7 +494,7 @@
                 numBtn.innerText = i;
                 numBtn.onclick = () => {
                     currentPage = i;
-                    renderUI(document.getElementById('searchInput').value);
+                    loadLeaderboard();
                 };
                 controls.appendChild(numBtn);
             }
@@ -511,28 +506,48 @@
             nextBtn.onclick = () => {
                 if (currentPage < totalPages) {
                     currentPage++;
-                    renderUI(document.getElementById('searchInput').value);
+                    loadLeaderboard();
                 }
             };
             controls.appendChild(nextBtn);
+
+            if (totalPages > 10) {
+                const jumpInput = document.createElement('input');
+                jumpInput.type = 'number';
+                jumpInput.className = 'jump-input';
+                jumpInput.min = 1;
+                jumpInput.max = totalPages;
+                jumpInput.placeholder = 'Go';
+                jumpInput.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        let val = parseInt(jumpInput.value);
+                        if (val >= 1 && val <= totalPages) {
+                            currentPage = val;
+                            loadLeaderboard();
+                        }
+                    }
+                };
+                controls.appendChild(jumpInput);
+            }
         }
 
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            currentPage = 1;
-            renderUI(e.target.value);
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                currentPage = 1;
+                currentSearch = e.target.value.trim();
+                loadLeaderboard();
+            }, 300);
         });
 
         changeLanguage(currentLang);
-        if (cachedPlayers.length > 0) {
-            cachedPlayers.forEach((p, index) => {
-                if (!p.originalRank) p.originalRank = index + 1;
-            });
-            updateHeroStats();
-            renderUI();
-        }
+        loadStats();
         loadLeaderboard();
 
-        setInterval(loadLeaderboard, 5000);
+        setInterval(() => {
+            loadStats();
+            loadLeaderboard();
+        }, 5000);
     </script>
 </body>
 </html>
