@@ -82,7 +82,7 @@ db.serialize(() => {
     }
     stmt.finalize();
     db.run("COMMIT;", () => {
-        console.log("[DB] 玩家数据校准清洗完毕，已剔除所有颜色代码！");
+        console.log("[DB] 数据库同步完成，每个 SteamID 独立计算！");
     });
 });
 
@@ -141,7 +141,7 @@ app.post('/api/score', (req, res) => {
         }
 
         db.get("SELECT player_id, name, score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
-            console.log(`[同步成功] ID: ${targetSteamId} | 名字: ${row.name} | 本局: ${isWin ? '胜' : '负'} (${change >= 0 ? '+' : ''}${change}) | 当前分: ${row.score} | 总场次: ${row.matches}`);
+            console.log(`[战绩同步] SteamID: ${targetSteamId} | 名字: ${row ? row.name : pureName} | 本局: ${isWin ? '胜' : '负'} (${change >= 0 ? '+' : ''}${change}) | 最新分: ${row ? row.score : 'N/A'}`);
             res.json({ 
                 status: "success", 
                 data: row
