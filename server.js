@@ -12,11 +12,12 @@ const SERVER_SECRET_KEY = "CRAB_SECRET_KEY_888888";
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // 兼容表单上传
 app.use(express.static(__dirname));
 
 function cleanName(name) {
     if (!name) return "Unknown";
-    return name.replace(/<[^>]*>/g, '').trim();
+    return String(name).replace(/<[^>]*>/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '').trim() || "Unknown";
 }
 
 let dataFolder = __dirname;
@@ -38,6 +39,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
+// 初始化数据库表结构与预置数据
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -54,6 +56,7 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 
+    // 仅在玩家不存在时插入预置数据，服务重启绝对不会覆盖在线打的分数
     db.run("BEGIN TRANSACTION;");
     const stmt = db.prepare(`
         INSERT INTO players (player_id, name, region, wins, matches, score)
@@ -64,12 +67,14 @@ db.serialize(() => {
     if (Array.isArray(initialPlayers)) {
         console.log(`[DB] 正在校验/同步 ${initialPlayers.length} 名天梯玩家...`);
         initialPlayers.forEach(p => {
-            stmt.run(p.id, cleanName(p.name), p.wins || 0, p.matches || 0, p.score || 1000);
+            if (p && p.id) {
+                stmt.run(String(p.id).trim(), cleanName(p.name), p.wins || 0, p.matches || 0, p.score || 1000);
+            }
         });
     }
     stmt.finalize();
     db.run("COMMIT;", () => {
-        console.log("[DB] 玩家数据初始化就绪！");
+        console.log("[DB] 玩家数据初始化完成！");
     });
 });
 
@@ -77,6 +82,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// 排行榜数据接口
 app.get('/api/leaderboard', (req, res) => {
     const query = `
         SELECT player_id, name, region, wins, matches, score,
@@ -91,25 +97,38 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
+// 核心优化：全兼容分数结算上传接口
 app.post('/api/score', (req, res) => {
-    const apiKey = req.headers['x-api-key'];
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
-        return res.status(403).json({ status: "error", message: "Forbidden" });
+        console.warn("[AUTH FAIL] 秘钥错误:", apiKey);
+        return res.status(403).json({ status: "error", message: "Forbidden: Invalid API Key" });
     }
 
-    const { playerId, name, region, isWin, scoreChange } = req.body;
-    if (!playerId) return res.status(400).json({ status: "error", message: "Missing playerId" });
+    // 核心兼容：自动适配 steamId, playerId, SteamId, id 等各种命名
+    const rawId = req.body.steamId || req.body.playerId || req.body.SteamId || req.body.id;
+    if (!rawId) {
+        console.warn("[WARN] 缺少玩家 SteamID, 收到请求体:", req.body);
+        return res.status(400).json({ status: "error", message: "Missing steamId/playerId in request body" });
+    }
 
-    const change = parseInt(scoreChange) || 0;
-    const pureName = cleanName(name);
+    const targetSteamId = String(rawId).trim();
+    const pureName = cleanName(req.body.name || req.body.playerName);
+    
+    // 兼容布尔值、字符串布尔值或数字
+    const isWin = req.body.isWin === true || req.body.isWin === "true" || req.body.isWin === 1 || req.body.isWin === "1";
     const winIncrement = isWin ? 1 : 0;
-    const finalRegion = region || 'Global';
+    
+    // 兼容分数加减
+    const change = parseInt(req.body.scoreChange || req.body.change || req.body.score) || 0;
+    const finalRegion = req.body.region || 'Global';
 
+    // 基于 SteamID 精确更新或新建
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-        VALUES (?, ?, ?, ?, 1, 1000 + ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, 1, MAX(0, 1000 + ?), CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
-            name = excluded.name,
+            name = CASE WHEN excluded.name != 'Unknown' AND excluded.name != '' THEN excluded.name ELSE players.name END,
             region = excluded.region,
             wins = players.wins + ?,
             matches = players.matches + 1,
@@ -117,13 +136,23 @@ app.post('/api/score', (req, res) => {
             updated_at = CURRENT_TIMESTAMP
     `;
 
-    db.run(sql, [playerId, pureName, finalRegion, winIncrement, change, winIncrement, change], function (err) {
+    db.run(sql, [targetSteamId, pureName, finalRegion, winIncrement, change, winIncrement, change], function (err) {
         if (err) {
-            console.error("SQL Update Error:", err.message);
+            console.error("[SQL ERROR]:", err.message);
             return res.status(500).json({ status: "error", message: err.message });
         }
-        console.log(`[Score Upload] 玩家: ${pureName} (${playerId}), 胜负: ${isWin}, 分数变动: ${change}`);
-        res.json({ status: "success" });
+
+        // 查询更新后的最新分数并返回
+        db.get("SELECT score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
+            console.log(`[战绩同步成功] SteamID: ${targetSteamId} | 玩家: ${pureName} | 本场: ${isWin ? '胜利' : '失败'} (${change >= 0 ? '+' : ''}${change}) | 最新分数: ${row ? row.score : 'N/A'}`);
+            res.json({ 
+                status: "success", 
+                steamId: targetSteamId,
+                newScore: row ? row.score : null,
+                wins: row ? row.wins : null,
+                matches: row ? row.matches : null
+            });
+        });
     });
 });
 
