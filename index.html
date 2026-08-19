@@ -176,21 +176,21 @@
                 <div class="stat-item">
                     <div class="stat-icon">👥</div>
                     <div>
-                        <div class="stat-val" id="statPlayers">0</div>
+                        <div class="stat-val" id="statPlayers">...</div>
                         <div class="stat-lbl" data-i18n="stat_players">Ranked Players</div>
                     </div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-icon">🎮</div>
                     <div>
-                        <div class="stat-val" id="statMatches">0</div>
+                        <div class="stat-val" id="statMatches">...</div>
                         <div class="stat-lbl" data-i18n="stat_matches">Total Matches</div>
                     </div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-icon">🔥</div>
                     <div>
-                        <div class="stat-val" id="statTopMMR">1,000</div>
+                        <div class="stat-val" id="statTopMMR">...</div>
                         <div class="stat-lbl" data-i18n="stat_top_mmr">Highest MMR</div>
                     </div>
                 </div>
@@ -228,11 +228,12 @@
                         </tr>
                     </thead>
                     <tbody id="leaderboardBody">
+                        <tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:30px;">Loading live ladder data...</td></tr>
                     </tbody>
                 </table>
 
                 <div class="pagination-container" id="paginationContainer">
-                    <div class="pagination-info" id="paginationInfo">Showing 1-10 of 0 players</div>
+                    <div class="pagination-info" id="paginationInfo">Showing ...</div>
                     <div class="pagination-controls" id="paginationControls">
                     </div>
                 </div>
@@ -244,9 +245,9 @@
                     <div class="mvp-avatar-glow">
                         <div id="mvpAvatar">👑</div>
                     </div>
-                    <div class="mvp-name" id="mvpName">No Player Yet</div>
+                    <div class="mvp-name" id="mvpName">Loading...</div>
                     <div class="mvp-tier-box" id="mvpTierBox"></div>
-                    <div class="mvp-score" id="mvpScore">0</div>
+                    <div class="mvp-score" id="mvpScore">...</div>
                     <div class="mvp-score-sub" data-i18n="mvp_rating">Global Rating</div>
                 </div>
             </div>
@@ -267,13 +268,10 @@
 
     <script>
         const API_URL = "https://serein-69githubio-production.up.railway.app/api";
+        let cachedPlayers = JSON.parse(localStorage.getItem('crab_cached_leaderboard') || '[]');
 
         let currentPage = 1;
         const pageSize = 10;
-        let currentSearch = "";
-        let totalMatched = 0;
-        let globalTotal = 0;
-        let searchDebounceTimer = null;
 
         const I18N = {
             en: {
@@ -364,60 +362,68 @@
                 if (t[key]) el.placeholder = t[key];
             });
 
-            loadLeaderboard();
-        }
-
-        async function loadStats() {
-            try {
-                const res = await fetch(`${API_URL}/stats`);
-                const result = await res.json();
-                if (result.status === "success") {
-                    const d = result.data;
-                    globalTotal = d.totalPlayers || 0;
-                    document.getElementById('statPlayers').innerText = d.totalPlayers.toLocaleString();
-                    document.getElementById('statMatches').innerText = (d.totalMatches || 0).toLocaleString();
-                    document.getElementById('statTopMMR').innerText = (d.topScore || 1000).toLocaleString();
-
-                    if (d.topPlayer) {
-                        const top1 = d.topPlayer;
-                        const top1Tier = getTierInfo(top1.score);
-                        document.getElementById('mvpName').innerText = top1.name;
-                        document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
-                        document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
-                        document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
-                    }
-                }
-            } catch (err) {
-                console.error("Stats Fetch Error:", err);
-            }
+            renderUI(document.getElementById('searchInput').value);
         }
 
         async function loadLeaderboard() {
             try {
-                const url = `${API_URL}/leaderboard?page=${currentPage}&limit=${pageSize}&search=${encodeURIComponent(currentSearch)}`;
-                const res = await fetch(url);
+                const res = await fetch(`${API_URL}/leaderboard`);
                 const result = await res.json();
-
                 if (result.status === "success") {
-                    totalMatched = result.total || 0;
-                    renderTable(result.data || []);
-                    renderPagination(totalMatched);
+                    let players = result.data || [];
+                    players.forEach((p, index) => {
+                        p.originalRank = index + 1;
+                    });
+
+                    cachedPlayers = players;
+                    localStorage.setItem('crab_cached_leaderboard', JSON.stringify(cachedPlayers));
+                    updateHeroStats();
+                    renderUI(document.getElementById('searchInput').value);
                 }
             } catch (err) {
-                console.error("Leaderboard Fetch Error:", err);
+                console.error("Fetch Error:", err);
             }
         }
 
-        function renderTable(players) {
+        function updateHeroStats() {
+            document.getElementById('statPlayers').innerText = cachedPlayers.length.toLocaleString();
+            let totalMatches = cachedPlayers.reduce((acc, p) => acc + (p.matches || 0), 0);
+            document.getElementById('statMatches').innerText = totalMatches.toLocaleString();
+
+            if (cachedPlayers.length > 0) {
+                document.getElementById('statTopMMR').innerText = cachedPlayers[0].score.toLocaleString();
+
+                const top1 = cachedPlayers[0];
+                const top1Tier = getTierInfo(top1.score);
+                document.getElementById('mvpName').innerText = top1.name;
+                document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
+                document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
+                document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
+            }
+        }
+
+        function renderUI(query = "") {
             const tbody = document.getElementById('leaderboardBody');
+            const trimmedQuery = query.trim().toLowerCase();
+            
+            const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(trimmedQuery));
+
             tbody.innerHTML = "";
 
-            if (!players || players.length === 0) {
+            if (list.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">No players found</td></tr>`;
+                renderPagination(0, 0, trimmedQuery);
                 return;
             }
 
-            players.forEach((p) => {
+            const totalPages = Math.ceil(list.length / pageSize) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageList = list.slice(startIndex, endIndex);
+
+            pageList.forEach((p) => {
                 const rank = p.originalRank;
                 let rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "";
                 let rankIcon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
@@ -442,20 +448,22 @@
                 `;
                 tbody.appendChild(tr);
             });
+
+            renderPagination(list.length, cachedPlayers.length, trimmedQuery);
         }
 
-        function renderPagination(totalCount) {
+        function renderPagination(matchedCount, totalCount, query) {
             const controls = document.getElementById('paginationControls');
             const info = document.getElementById('paginationInfo');
-            const totalPages = Math.ceil(totalCount / pageSize) || 1;
+            const totalPages = Math.ceil(matchedCount / pageSize) || 1;
             const t = I18N[currentLang];
 
-            if (totalCount === 0) {
+            if (matchedCount === 0) {
                 info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
-            } else if (currentSearch) {
+            } else if (query) {
                 const start = (currentPage - 1) * pageSize + 1;
-                const end = Math.min(currentPage * pageSize, totalCount);
-                info.innerText = `${t.pg_search_result} ${totalCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${globalTotal.toLocaleString()})`;
+                const end = Math.min(currentPage * pageSize, matchedCount);
+                info.innerText = `${t.pg_search_result} ${matchedCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${totalCount.toLocaleString()})`;
             } else {
                 const start = (currentPage - 1) * pageSize + 1;
                 const end = Math.min(currentPage * pageSize, totalCount);
@@ -472,7 +480,7 @@
             prevBtn.onclick = () => {
                 if (currentPage > 1) {
                     currentPage--;
-                    loadLeaderboard();
+                    renderUI(document.getElementById('searchInput').value);
                 }
             };
             controls.appendChild(prevBtn);
@@ -494,7 +502,7 @@
                 numBtn.innerText = i;
                 numBtn.onclick = () => {
                     currentPage = i;
-                    loadLeaderboard();
+                    renderUI(document.getElementById('searchInput').value);
                 };
                 controls.appendChild(numBtn);
             }
@@ -506,7 +514,7 @@
             nextBtn.onclick = () => {
                 if (currentPage < totalPages) {
                     currentPage++;
-                    loadLeaderboard();
+                    renderUI(document.getElementById('searchInput').value);
                 }
             };
             controls.appendChild(nextBtn);
@@ -523,7 +531,7 @@
                         let val = parseInt(jumpInput.value);
                         if (val >= 1 && val <= totalPages) {
                             currentPage = val;
-                            loadLeaderboard();
+                            renderUI(document.getElementById('searchInput').value);
                         }
                     }
                 };
@@ -532,22 +540,22 @@
         }
 
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            clearTimeout(searchDebounceTimer);
-            searchDebounceTimer = setTimeout(() => {
-                currentPage = 1;
-                currentSearch = e.target.value.trim();
-                loadLeaderboard();
-            }, 300);
+            currentPage = 1;
+            renderUI(e.target.value);
         });
 
         changeLanguage(currentLang);
-        loadStats();
+        
+        if (cachedPlayers.length > 0) {
+            cachedPlayers.forEach((p, index) => {
+                if (!p.originalRank) p.originalRank = index + 1;
+            });
+            updateHeroStats();
+            renderUI();
+        }
+        
         loadLeaderboard();
-
-        setInterval(() => {
-            loadStats();
-            loadLeaderboard();
-        }, 5000);
+        setInterval(loadLeaderboard, 5000);
     </script>
 </body>
 </html>
