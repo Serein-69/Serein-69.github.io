@@ -79,7 +79,7 @@
         .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted); }
 
         .ranking-table { width: 100%; border-collapse: collapse; text-align: left; }
-        .ranking-table th { padding: 12px 10px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
+        .ranking-table th { padding: 12px 10px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-weight: 800; }
         .ranking-table td { padding: 14px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; }
         .ranking-table tr:hover td { background: var(--bg-card-hover); }
 
@@ -94,11 +94,10 @@
         .btn-del-mini { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
         .btn-del-mini:hover { background: #ef4444; color: #fff; }
 
-        /* 段位徽章样式 */
         .tier-tag {
             display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .tier-gm { background: rgba(236, 72, 153, 0.15); color: #f43f5e; border: 1px solid #f43f5e; box-shadow: 0 0 8px rgba(244, 63, 94, 0.3); }
+        .tier-gm { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid #f43f5e; box-shadow: 0 0 8px rgba(244, 63, 94, 0.3); }
         .tier-master { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid #c084fc; }
         .tier-diamond { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid #38bdf8; }
         .tier-platinum { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #34d399; }
@@ -227,10 +226,10 @@
                         <tr>
                             <th data-i18n="th_rank">#</th>
                             <th data-i18n="th_player">Player</th>
-                            <th data-i18n="th_tier">Tier Rank</th>
-                            <th data-i18n="th_mmr">Elo / MMR</th>
-                            <th data-i18n="th_wl">W - L</th>
-                            <th data-i18n="th_winrate">Win %</th>
+                            <th data-i18n="th_tier">Rank</th>
+                            <th data-i18n="th_mmr">Elo</th>
+                            <th data-i18n="th_wl">W-L</th>
+                            <th data-i18n="th_winrate">Win%</th>
                             <th id="thAdmin" style="display:none;" data-i18n="th_action">Action</th>
                         </tr>
                     </thead>
@@ -285,7 +284,7 @@
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
-                th_rank: "#", th_player: "Player", th_tier: "Rank Tier", th_mmr: "Elo / MMR", th_wl: "W - L", th_winrate: "Win %", th_action: "Action",
+                th_rank: "#", th_player: "Player", th_tier: "Rank", th_mmr: "Elo", th_wl: "W-L", th_winrate: "Win%", th_action: "Action",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
                 footer_desc: "The premier global competitive ranking platform for Crab Game players worldwide.",
                 pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
@@ -297,7 +296,7 @@
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
-                th_rank: "排名", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率", th_action: "操作",
+                th_rank: "排名", th_player: "玩家", th_tier: "段位", th_mmr: "Elo", th_wl: "W-L", th_winrate: "胜率%", th_action: "操作",
                 mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
                 footer_desc: "专为全球 Crab Game 竞技玩家打造的权威天梯排位与数据分析平台。",
                 pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
@@ -309,7 +308,7 @@
                 hero_badge: "Глобальный рейтинг", hero_title_1: "CRAB GAME", hero_title_2: "МИРОВОЙ РЕЙТИНГ",
                 stat_players: "Игроков", stat_matches: "Матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
-                th_rank: "#", th_player: "Игрок", th_tier: "Ранг", th_mmr: "Elo / MMR", th_wl: "В - П", th_winrate: "Винрейт", th_action: "Действие",
+                th_rank: "#", th_player: "Игрок", th_tier: "Ранг", th_mmr: "Elo", th_wl: "W-L", th_winrate: "Win%", th_action: "Действие",
                 mvp_title: "👑 Лидер рейтинга", mvp_rating: "Общий рейтинг",
                 footer_desc: "Официальная рейтинговая платформа для игроков Crab Game по всему миру.",
                 pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
@@ -321,7 +320,7 @@
                 hero_badge: "Dünyanın En İyi", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
                 stat_players: "Kayıtlı Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek Puan", stat_status: "Aktif",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
-                th_rank: "#", th_player: "Oyuncu", th_tier: "Kademe", th_mmr: "Elo / MMR", th_wl: "G - M", th_winrate: "Kazanma %", th_action: "İşlem",
+                th_rank: "#", th_player: "Oyuncu", th_tier: "Rank", th_mmr: "Elo", th_wl: "W-L", th_winrate: "Win%", th_action: "İşlem",
                 mvp_title: "👑 Ayın En İyi Oyuncusu", mvp_rating: "Genel Puan",
                 footer_desc: "Crab Game oyuncuları için küresel rekabetçi sıralama ve veri platformu.",
                 pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
@@ -332,27 +331,32 @@
 
         let currentLang = localStorage.getItem('crab_ranking_lang') || 'en';
 
-        // 🌟 动态计算段位与颜色徽章
         function getTierInfo(score) {
-            if (score >= 1500) return { name: "GM IV", class: "tier-gm" };
-            if (score >= 1450) return { name: "GM III", class: "tier-gm" };
-            if (score >= 1400) return { name: "GM II", class: "tier-gm" };
+            if (score >= 1400) return { name: "GM IV", class: "tier-gm" };
+            if (score >= 1390) return { name: "GM III", class: "tier-gm" };
+            if (score >= 1375) return { name: "GM II", class: "tier-gm" };
             if (score >= 1350) return { name: "GM I", class: "tier-gm" };
-            if (score >= 1335) return { name: "Master IV", class: "tier-master" };
+
+            if (score >= 1330) return { name: "Master IV", class: "tier-master" };
             if (score >= 1320) return { name: "Master III", class: "tier-master" };
             if (score >= 1310) return { name: "Master II", class: "tier-master" };
             if (score >= 1300) return { name: "Master I", class: "tier-master" };
-            if (score >= 1265) return { name: "Diamond II", class: "tier-diamond" };
-            if (score >= 1250) return { name: "Diamond I", class: "tier-diamond" };
+
+            if (score >= 1260) return { name: "Diamond II", class: "tier-diamond" };
+            if (score >= 1245) return { name: "Diamond I", class: "tier-diamond" };
+
             if (score >= 1230) return { name: "Platinum IV", class: "tier-platinum" };
-            if (score >= 1215) return { name: "Platinum III", class: "tier-platinum" };
-            if (score >= 1195) return { name: "Platinum II", class: "tier-platinum" };
+            if (score >= 1210) return { name: "Platinum III", class: "tier-platinum" };
+            if (score >= 1190) return { name: "Platinum II", class: "tier-platinum" };
             if (score >= 1170) return { name: "Platinum I", class: "tier-platinum" };
+
             if (score >= 1150) return { name: "Gold IV", class: "tier-gold" };
-            if (score >= 1130) return { name: "Gold III", class: "tier-gold" };
-            if (score >= 1115) return { name: "Gold II", class: "tier-gold" };
+            if (score >= 1125) return { name: "Gold III", class: "tier-gold" };
+            if (score >= 1110) return { name: "Gold II", class: "tier-gold" };
             if (score >= 1100) return { name: "Gold I", class: "tier-gold" };
-            if (score >= 1000) return { name: "Silver", class: "tier-silver" };
+
+            if (score >= 1050) return { name: "Silver II", class: "tier-silver" };
+            if (score >= 1000) return { name: "Silver I", class: "tier-silver" };
             return { name: "Bronze", class: "tier-bronze" };
         }
 
@@ -397,11 +401,11 @@
                     const data = await res.json();
                     if (data.status === "success") {
                         localStorage.setItem('crab_admin_steamid', inputId.trim());
-                        alert("✅ Admin Verified!");
+                        alert("Admin Verified!");
                         updateAdminUI();
                         renderUI();
                     } else {
-                        alert("❌ " + data.message);
+                        alert("Failed: " + data.message);
                     }
                 } catch { alert("Connection Error"); }
             }
@@ -413,7 +417,7 @@
             const thAdmin = document.getElementById('thAdmin');
 
             if (adminId) {
-                btn.innerText = `👑 Admin (${adminId.substring(0, 6)}..)`;
+                btn.innerText = `Admin (${adminId.substring(0, 6)}..)`;
                 btn.style.background = "#10b981";
                 thAdmin.style.display = "table-cell";
             } else {
@@ -434,7 +438,7 @@
                     renderUI(document.getElementById('searchInput').value);
                 }
             } catch (err) {
-                console.error("加载数据失败:", err);
+                console.error("Fetch Error:", err);
             }
         }
 
@@ -482,6 +486,7 @@
 
                 const tier = getTierInfo(p.score);
                 const losses = Math.max(0, (p.matches || 0) - (p.wins || 0));
+                const winRateFormatted = (parseFloat(p.winRate) || 0).toFixed(2);
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -494,8 +499,8 @@
                     </td>
                     <td><span class="tier-tag ${tier.class}">${tier.name}</span></td>
                     <td><span class="score-badge">${p.score.toLocaleString()}</span></td>
-                    <td style="color:var(--text-muted); font-size:0.85rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
-                    <td><span style="color:#10b981; font-weight:800;">${p.winRate}%</span></td>
+                    <td style="color:#fff; font-weight:700;">${p.wins || 0}/${losses}</td>
+                    <td><span style="color:#10b981; font-weight:800;">${winRateFormatted}</span></td>
                     ${isAdmin ? `<td><button class="btn-del-mini" onclick="deletePlayer('${p.player_id}')">Delete</button></td>` : ''}
                 `;
                 tbody.appendChild(tr);
