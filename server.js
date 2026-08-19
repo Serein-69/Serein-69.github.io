@@ -58,22 +58,18 @@ db.serialize(() => {
     const stmt = db.prepare(`
         INSERT INTO players (player_id, name, region, wins, matches, score)
         VALUES (?, ?, 'Global', ?, ?, ?)
-        ON CONFLICT(player_id) DO UPDATE SET
-            name = excluded.name,
-            wins = excluded.wins,
-            matches = excluded.matches,
-            score = excluded.score
+        ON CONFLICT(player_id) DO NOTHING
     `);
 
     if (Array.isArray(initialPlayers)) {
-        console.log(`[DB] 正在同步 ${initialPlayers.length} 名天梯玩家...`);
+        console.log(`[DB] 正在校验/同步 ${initialPlayers.length} 名天梯玩家...`);
         initialPlayers.forEach(p => {
             stmt.run(p.id, cleanName(p.name), p.wins || 0, p.matches || 0, p.score || 1000);
         });
     }
     stmt.finalize();
     db.run("COMMIT;", () => {
-        console.log("[DB] 全部玩家数据同步就绪！");
+        console.log("[DB] 玩家数据初始化就绪！");
     });
 });
 
@@ -123,9 +119,10 @@ app.post('/api/score', (req, res) => {
 
     db.run(sql, [playerId, pureName, finalRegion, winIncrement, change, winIncrement, change], function (err) {
         if (err) {
-            console.error("SQL Error:", err.message);
+            console.error("SQL Update Error:", err.message);
             return res.status(500).json({ status: "error", message: err.message });
         }
+        console.log(`[Score Upload] 玩家: ${pureName} (${playerId}), 胜负: ${isWin}, 分数变动: ${change}`);
         res.json({ status: "success" });
     });
 });
