@@ -4,7 +4,6 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-
 const initialPlayers = require('./playersData');
 
 const app = express();
@@ -35,9 +34,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
     else {
         db.run("PRAGMA journal_mode = WAL;");
         db.run("PRAGMA synchronous = NORMAL;");
+        db.run("PRAGMA cache_size = -64000;"); 
     }
 });
-
 
 db.serialize(() => {
     db.run(`
@@ -52,8 +51,9 @@ db.serialize(() => {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC);`);
-
+    db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_name ON players(name);`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 
     db.run("BEGIN TRANSACTION;");
     const stmt = db.prepare(`
@@ -79,21 +79,94 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-
-app.get('/api/leaderboard', (req, res) => {
-    const query = `
-        SELECT player_id, name, region, wins, matches, score,
-               ROUND((CAST(wins AS FLOAT) / CAST(CASE WHEN matches = 0 THEN 1 ELSE matches END AS FLOAT)) * 100, 1) as winRate
-        FROM players 
-        ORDER BY score DESC 
-        LIMIT 10000
+app.get('/api/stats', (req, res) => {
+    const statsQuery = `
+        SELECT 
+            COUNT(*) as totalPlayers,
+            SUM(matches) as totalMatches,
+            MAX(score) as topScore
+        FROM players
     `;
-    db.all(query, [], (err, rows) => {
+    const topPlayerQuery = `
+        SELECT player_id, name, score FROM players ORDER BY score DESC, wins DESC LIMIT 1
+    `;
+    
+    db.get(statsQuery, [], (err, stats) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", data: rows || [] });
+        db.get(topPlayerQuery, [], (err, top1) => {
+            res.json({
+                status: "success",
+                data: {
+                    totalPlayers: stats.totalPlayers || 0,
+                    totalMatches: stats.totalMatches || 0,
+                    topScore: stats.topScore || 1000,
+                    topPlayer: top1 || null
+                }
+            });
+        });
     });
 });
 
+app.get('/api/leaderboard', (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || "").trim();
+
+    if (search) {
+        const countSql = `SELECT COUNT(*) as count FROM players WHERE name LIKE ?`;
+        const dataSql = `
+            WITH RankedPlayers AS (
+                SELECT 
+                    player_id, name, region, wins, matches, score,
+                    ROUND((CAST(wins AS FLOAT) / CAST(CASE WHEN matches = 0 THEN 1 ELSE matches END AS FLOAT)) * 100, 1) as winRate,
+                    ROW_NUMBER() OVER (ORDER BY score DESC, wins DESC) as originalRank
+                FROM players
+            )
+            SELECT * FROM RankedPlayers
+            WHERE name LIKE ?
+            LIMIT ? OFFSET ?
+        `;
+        const searchParam = `%${search}%`;
+        db.get(countSql, [searchParam], (err, countRow) => {
+            if (err) return res.status(500).json({ status: "error", message: err.message });
+            db.all(dataSql, [searchParam, limit, offset], (err, rows) => {
+                if (err) return res.status(500).json({ status: "error", message: err.message });
+                res.json({
+                    status: "success",
+                    total: countRow.count,
+                    page,
+                    limit,
+                    data: rows || []
+                });
+            });
+        });
+    } else {
+        const countSql = `SELECT COUNT(*) as count FROM players`;
+        const dataSql = `
+            SELECT 
+                player_id, name, region, wins, matches, score,
+                ROUND((CAST(wins AS FLOAT) / CAST(CASE WHEN matches = 0 THEN 1 ELSE matches END AS FLOAT)) * 100, 1) as winRate,
+                (? + ROW_NUMBER() OVER (ORDER BY score DESC, wins DESC)) as originalRank
+            FROM players
+            ORDER BY score DESC, wins DESC
+            LIMIT ? OFFSET ?
+        `;
+        db.get(countSql, [], (err, countRow) => {
+            if (err) return res.status(500).json({ status: "error", message: err.message });
+            db.all(dataSql, [offset, limit, offset], (err, rows) => {
+                if (err) return res.status(500).json({ status: "error", message: err.message });
+                res.json({
+                    status: "success",
+                    total: countRow.count,
+                    page,
+                    limit,
+                    data: rows || []
+                });
+            });
+        });
+    }
+});
 
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'];
