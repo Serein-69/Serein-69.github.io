@@ -24,7 +24,6 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
         body { background-color: var(--bg-main); color: var(--text-main); line-height: 1.5; overflow-x: hidden; }
 
-        /* --- 导航栏 --- */
         .navbar {
             display: flex; justify-content: space-between; align-items: center;
             padding: 16px 40px; background: rgba(10, 11, 14, 0.85);
@@ -35,7 +34,6 @@
         .logo { font-size: 1.4rem; font-weight: 900; letter-spacing: 1.5px; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .nav-right { display: flex; align-items: center; gap: 15px; }
 
-        /* 语言选择下拉菜单 */
         .lang-select {
             background: #181b26; color: #fff; border: 1px solid var(--border-color);
             padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;
@@ -51,7 +49,6 @@
 
         .container { max-width: 1240px; margin: 0 auto; padding: 30px 20px; }
 
-        /* --- 头部横幅 (HERO) --- */
         .hero {
             position: relative; border-radius: 16px; overflow: hidden;
             background: linear-gradient(180deg, rgba(147, 51, 234, 0.15) 0%, rgba(10, 11, 14, 0) 100%), #141622;
@@ -61,7 +58,6 @@
         .hero-title { font-size: 2.6rem; font-weight: 900; line-height: 1.1; margin-bottom: 15px; }
         .hero-title span { background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-        /* 数据统计条 */
         .stats-bar {
             display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;
             background: rgba(18, 20, 28, 0.6); border: 1px solid var(--border-color);
@@ -72,20 +68,16 @@
         .stat-val { font-size: 1.3rem; font-weight: 800; }
         .stat-lbl { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
 
-        /* --- 主内容 2 栏网格 --- */
         .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; margin-bottom: 40px; }
 
-        /* 左侧排行榜卡片 */
         .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
         .card-title { font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
 
-        /* 搜索框 */
         .search-wrapper { position: relative; width: 220px; }
         .search-input { width: 100%; background: #0c0e14; border: 1px solid var(--border-color); color: #fff; padding: 8px 12px 8px 32px; border-radius: 6px; font-size: 0.85rem; outline: none; }
         .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted); }
 
-        /* 表格样式 */
         .ranking-table { width: 100%; border-collapse: collapse; text-align: left; }
         .ranking-table th { padding: 12px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
         .ranking-table td { padding: 14px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; }
@@ -102,7 +94,6 @@
         .btn-del-mini { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
         .btn-del-mini:hover { background: #ef4444; color: #fff; }
 
-        /* --- 🌟 现代化分页器样式 --- */
         .pagination-container {
             display: flex; justify-content: space-between; align-items: center;
             margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);
@@ -122,10 +113,8 @@
         }
         .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-        /* --- 右侧侧边栏 --- */
         .sidebar { display: flex; flex-direction: column; gap: 20px; }
 
-        /* 月度最佳/榜一 卡片 */
         .mvp-card {
             background: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.25), transparent 70%), var(--bg-card);
             border: 1px solid var(--border-color); border-radius: 14px; padding: 25px; text-align: center; position: relative;
@@ -142,13 +131,11 @@
         .mvp-score { font-size: 1.8rem; font-weight: 900; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .mvp-score-sub { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
 
-        /* 规则卡片 */
         .info-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; }
         .info-list { list-style: none; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
         .info-list li { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 6px; }
         .info-list li span:last-child { font-weight: 700; color: #fff; }
 
-        /* --- 页脚 --- */
         footer { border-top: 1px solid var(--border-color); padding: 40px 0 20px; background: #07080a; }
         .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 30px; max-width: 1240px; margin: 0 auto; padding: 0 20px 20px; }
         .footer-logo { font-size: 1.2rem; font-weight: 900; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
@@ -164,13 +151,11 @@
 </head>
 <body>
 
-    <!-- 顶部导航 -->
     <nav class="navbar">
         <div class="nav-left">
             <div class="logo">CRAB GAME RANKING</div>
         </div>
         <div class="nav-right">
-            <!-- 纯文字多语言切换 (EN, ZH, RU, TR) -->
             <select class="lang-select" id="languageSelector" onchange="changeLanguage(this.value)">
                 <option value="en">English (EN)</option>
                 <option value="zh">简体中文 (ZH)</option>
@@ -182,12 +167,10 @@
     </nav>
 
     <div class="container">
-        <!-- 头部 HERO BANNER -->
         <section class="hero">
             <div class="hero-badge" data-i18n="hero_badge">Global Competitive Ladder</div>
             <h1 class="hero-title"><span data-i18n="hero_title_1">CRAB GAME</span><br><span data-i18n="hero_title_2">GLOBAL RANKINGS</span></h1>
 
-            <!-- 数据统计条 -->
             <div class="stats-bar">
                 <div class="stat-item">
                     <div class="stat-icon">👥</div>
@@ -220,9 +203,7 @@
             </div>
         </section>
 
-        <!-- 主内容：左侧排行榜 + 右侧 MVP 卡片 -->
         <div class="main-grid" id="leaderboardSection">
-            <!-- 左侧核心排行榜 -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
@@ -246,22 +227,17 @@
                         </tr>
                     </thead>
                     <tbody id="leaderboardBody">
-                        <!-- 数据由 JS 动态渲染 -->
                     </tbody>
                 </table>
 
-                <!-- 🌟 分页组件 -->
                 <div class="pagination-container" id="paginationContainer">
                     <div class="pagination-info" id="paginationInfo">Showing 1-10 of 0 players</div>
                     <div class="pagination-controls" id="paginationControls">
-                        <!-- 由 JS 动态生成页码按钮 -->
                     </div>
                 </div>
             </div>
 
-            <!-- 右侧边栏 -->
             <div class="sidebar">
-                <!-- 👑 当前榜一 / MVP 卡片 -->
                 <div class="mvp-card">
                     <div class="mvp-badge-top" data-i18n="mvp_title">👑 Current Rank #1</div>
                     <div class="mvp-avatar-glow">
@@ -273,7 +249,6 @@
                     <div class="mvp-score-sub" data-i18n="mvp_rating">Global Rating</div>
                 </div>
 
-                <!-- 评分规则说明 -->
                 <div class="info-card" id="rules">
                     <div class="card-title" style="font-size: 0.95rem;">
                         <span>📊</span> <span data-i18n="rules_title">Rating System</span>
@@ -288,7 +263,6 @@
         </div>
     </div>
 
-    <!-- 底部 FOOTER -->
     <footer>
         <div class="footer-grid">
             <div>
@@ -301,16 +275,13 @@
         </div>
     </footer>
 
-    <!-- 核心 JS 逻辑 + 动态分页引擎 + 4国语言 -->
     <script>
         const API_URL = "https://serein-69-github-io-seven.vercel.app/api";
         let cachedPlayers = [];
 
-        // 🌟 分页状态变量
         let currentPage = 1;
-        const pageSize = 10; // 每页显示 10 名玩家
+        const pageSize = 10;
 
-        // --- 🌐 4 语言国际化字典 ---
         const I18N = {
             en: {
                 btn_admin: "Admin Auth",
@@ -386,7 +357,6 @@
             renderUI(document.getElementById('searchInput').value);
         }
 
-        // 管理员 SteamID 鉴权
         function getAdminSteamId() { return localStorage.getItem('crab_admin_steamid'); }
 
         async function handleAdminAuth() {
@@ -436,7 +406,6 @@
             }
         }
 
-        // --- 📊 加载排行榜数据 ---
         async function loadLeaderboard() {
             try {
                 const res = await fetch(`${API_URL}/leaderboard`);
@@ -467,7 +436,6 @@
             }
         }
 
-        // --- 🌟 渲染排行榜 (支持精准切页) ---
         function renderUI(query = "") {
             const tbody = document.getElementById('leaderboardBody');
             const isAdmin = !!getAdminSteamId();
@@ -481,7 +449,6 @@
                 return;
             }
 
-            // 🌟 分页切片计算
             const totalPages = Math.ceil(list.length / pageSize) || 1;
             if (currentPage > totalPages) currentPage = totalPages;
 
@@ -490,7 +457,6 @@
             const pageList = list.slice(startIndex, endIndex);
 
             pageList.forEach((p, idx) => {
-                // 精准排名：第2页第一个人是 #11
                 const rank = startIndex + idx + 1;
                 let rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "";
                 let rankIcon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
@@ -512,18 +478,15 @@
                 tbody.appendChild(tr);
             });
 
-            // 渲染分页按钮条
             renderPagination(list.length);
         }
 
-        // --- 🌟 分页器生成逻辑 ---
         function renderPagination(totalItems) {
             const controls = document.getElementById('paginationControls');
             const info = document.getElementById('paginationInfo');
             const totalPages = Math.ceil(totalItems / pageSize) || 1;
             const t = I18N[currentLang];
 
-            // 状态信息 (如：显示 1-10 / 11 名玩家)
             if (totalItems === 0) {
                 info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
             } else {
@@ -533,9 +496,8 @@
             }
 
             controls.innerHTML = "";
-            if (totalPages <= 1) return; // 只有1页时不显示按钮
+            if (totalPages <= 1) return;
 
-            // 1. 上一页按钮
             const prevBtn = document.createElement('button');
             prevBtn.className = 'page-btn';
             prevBtn.innerText = t.pg_prev;
@@ -548,9 +510,7 @@
             };
             controls.appendChild(prevBtn);
 
-            // 2. 页码数字按钮
             for (let i = 1; i <= totalPages; i++) {
-                // 如果页数很多，智能折叠
                 if (totalPages > 6 && Math.abs(i - currentPage) > 2 && i !== 1 && i !== totalPages) {
                     if (i === 2 || i === totalPages - 1) {
                         const dots = document.createElement('span');
@@ -572,7 +532,6 @@
                 controls.appendChild(numBtn);
             }
 
-            // 3. 下一页按钮
             const nextBtn = document.createElement('button');
             nextBtn.className = 'page-btn';
             nextBtn.innerText = t.pg_next;
@@ -597,18 +556,15 @@
             if (data.status === "success") loadLeaderboard();
         }
 
-        // 搜索时重置回第 1 页
         document.getElementById('searchInput').addEventListener('input', (e) => {
             currentPage = 1;
             renderUI(e.target.value);
         });
 
-        // 默认初始化
         changeLanguage(currentLang);
         updateAdminUI();
         loadLeaderboard();
 
-        // 5秒定时轮询自动刷新榜单
         setInterval(loadLeaderboard, 5000);
     </script>
 </body>
