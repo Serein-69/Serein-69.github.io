@@ -7,15 +7,15 @@ const app = express();
 const PORT = 3000;
 const SERVER_SECRET_KEY = "CRAB_SECRET_KEY_888888";
 
-// 🌟 管理员 SteamID 白名单（在此处填入你的 Steam64 位 ID）
+
 const ADMIN_STEAM_IDS = [
-    "76561199115475689", // 示例：填入你的真实 SteamID
+    "76561199115475689", 
 ];
 
 app.use(cors());
 app.use(express.json());
 
-// 过滤名字里的 HTML/Color 标签
+
 function cleanName(name) {
     if (!name) return "Unknown";
     return name.replace(/<[^>]*>/g, '').trim();
@@ -27,7 +27,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
     else console.log('✅ SQLite 数据库已就绪 (leaderboard.db)');
 });
 
-// 初始化数据表
+
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -43,7 +43,7 @@ db.serialize(() => {
     `);
 });
 
-// 1. 获取排行榜
+
 app.get('/api/leaderboard', (req, res) => {
     const query = `
         SELECT player_id, name, region, wins, matches, score,
@@ -58,7 +58,7 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 2. 接收全房间战绩上报
+
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'];
     if (apiKey !== SERVER_SECRET_KEY) {
@@ -89,7 +89,7 @@ app.post('/api/score', (req, res) => {
     });
 });
 
-// 3. 验证管理员 SteamID
+
 app.post('/api/admin/verify', (req, res) => {
     const { steamId } = req.body;
     if (ADMIN_STEAM_IDS.includes(steamId.trim())) {
@@ -99,7 +99,7 @@ app.post('/api/admin/verify', (req, res) => {
     }
 });
 
-// 4. 管理员删除玩家
+
 app.delete('/api/admin/player/:playerId', (req, res) => {
     const adminSteamId = req.headers['x-admin-id'];
     if (!adminSteamId || !ADMIN_STEAM_IDS.includes(adminSteamId.trim())) {
