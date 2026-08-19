@@ -77,7 +77,7 @@
         .ranking-table td { padding: 14px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; }
         .ranking-table tr:hover td { background: var(--bg-card-hover); }
 
-        .rank-num { font-weight: 800; font-size: 0.95rem; width: 35px; }
+        .rank-num { font-weight: 800; font-size: 0.95rem; width: 45px; }
         .rank-1 { color: var(--gold); }
         .rank-2 { color: var(--silver); }
         .rank-3 { color: var(--bronze); }
@@ -277,7 +277,8 @@
                 th_rank: "#", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
                 footer_desc: "The premier global competitive ranking platform for Crab Game players worldwide.",
-                pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next"
+                pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
+                pg_search_result: "Found", pg_total: "total"
             },
             zh: {
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
@@ -286,7 +287,8 @@
                 th_rank: "排名", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率",
                 mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
                 footer_desc: "专为全球 Crab Game 竞技玩家打造的权威天梯排位与数据分析平台。",
-                pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页"
+                pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
+                pg_search_result: "找到", pg_total: "全服共"
             },
             ru: {
                 hero_badge: "Глобальный рейтинг", hero_title_1: "CRAB GAME", hero_title_2: "МИРОВОЙ РЕЙТИНГ",
@@ -295,7 +297,8 @@
                 th_rank: "#", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR Рейтинг", th_wl: "В - П", th_winrate: "Винрейт",
                 mvp_title: "👑 Лидер рейтинга", mvp_rating: "Общий рейтинг",
                 footer_desc: "Официальная рейтинговая платформа для игроков Crab Game по всему миру.",
-                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед"
+                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
+                pg_search_result: "Найдено", pg_total: "всего"
             },
             tr: {
                 hero_badge: "Dünyanın En İyi", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
@@ -304,7 +307,8 @@
                 th_rank: "#", th_player: "Oyuncu", th_tier: "Kademe", th_mmr: "MMR Puanı", th_wl: "G - M", th_winrate: "Kazanma Oranı",
                 mvp_title: "👑 Ayın En İyi Oyuncusu", mvp_rating: "Genel Puan",
                 footer_desc: "Crab Game oyuncuları için küresel rekabetçi sıralama ve veri platformu.",
-                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki"
+                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
+                pg_search_result: "Bulunan", pg_total: "toplam"
             }
         };
 
@@ -362,7 +366,12 @@
                 const res = await fetch(`${API_URL}/leaderboard`);
                 const result = await res.json();
                 if (result.status === "success") {
-                    cachedPlayers = result.data || [];
+                    let players = result.data || [];
+                    players.forEach((p, index) => {
+                        p.originalRank = index + 1;
+                    });
+
+                    cachedPlayers = players;
                     localStorage.setItem('crab_cached_leaderboard', JSON.stringify(cachedPlayers));
                     updateHeroStats();
                     renderUI(document.getElementById('searchInput').value);
@@ -391,13 +400,16 @@
 
         function renderUI(query = "") {
             const tbody = document.getElementById('leaderboardBody');
-            const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+            const trimmedQuery = query.trim().toLowerCase();
+            
+ 
+            const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(trimmedQuery));
 
             tbody.innerHTML = "";
 
             if (list.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">No players found</td></tr>`;
-                renderPagination(0);
+                renderPagination(0, 0, trimmedQuery);
                 return;
             }
 
@@ -408,10 +420,10 @@
             const endIndex = startIndex + pageSize;
             const pageList = list.slice(startIndex, endIndex);
 
-            pageList.forEach((p, idx) => {
-                const rank = startIndex + idx + 1;
+            pageList.forEach((p) => {！
+                const rank = p.originalRank;
                 let rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "";
-                let rankIcon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+                let rankIcon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
 
                 const tier = getTierInfo(p.score);
                 const losses = Math.max(0, (p.matches || 0) - (p.wins || 0));
@@ -434,21 +446,25 @@
                 tbody.appendChild(tr);
             });
 
-            renderPagination(list.length);
+            renderPagination(list.length, cachedPlayers.length, trimmedQuery);
         }
 
-        function renderPagination(totalItems) {
+        function renderPagination(matchedCount, totalCount, query) {
             const controls = document.getElementById('paginationControls');
             const info = document.getElementById('paginationInfo');
-            const totalPages = Math.ceil(totalItems / pageSize) || 1;
+            const totalPages = Math.ceil(matchedCount / pageSize) || 1;
             const t = I18N[currentLang];
 
-            if (totalItems === 0) {
+            if (matchedCount === 0) {
                 info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
+            } else if (query) {
+                const start = (currentPage - 1) * pageSize + 1;
+                const end = Math.min(currentPage * pageSize, matchedCount);
+                info.innerText = `${t.pg_search_result} ${matchedCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${totalCount.toLocaleString()})`;
             } else {
                 const start = (currentPage - 1) * pageSize + 1;
-                const end = Math.min(currentPage * pageSize, totalItems);
-                info.innerText = `${t.pg_showing} ${start}-${end} ${t.pg_of} ${totalItems} ${t.pg_players}`;
+                const end = Math.min(currentPage * pageSize, totalCount);
+                info.innerText = `${t.pg_showing} ${start}-${end} ${t.pg_of} ${totalCount.toLocaleString()} ${t.pg_players}`;
             }
 
             controls.innerHTML = "";
@@ -508,6 +524,9 @@
 
         changeLanguage(currentLang);
         if (cachedPlayers.length > 0) {
+            cachedPlayers.forEach((p, index) => {
+                if (!p.originalRank) p.originalRank = index + 1;
+            });
             updateHeroStats();
             renderUI();
         }
