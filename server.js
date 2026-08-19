@@ -32,8 +32,11 @@ try {
 
 const dbPath = path.resolve(dataFolder, 'leaderboard.db');
 const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) console.error("Database connection error:", err.message);
-    else console.log("Database connected at:", dbPath);
+    if (err) console.error("Database error:", err.message);
+    else {
+        db.run("PRAGMA journal_mode = WAL;");
+        db.run("PRAGMA synchronous = NORMAL;");
+    }
 });
 
 db.serialize(() => {
@@ -49,6 +52,7 @@ db.serialize(() => {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC);`);
 });
 
 app.get('/', (req, res) => {
@@ -61,7 +65,7 @@ app.get('/api/leaderboard', (req, res) => {
                ROUND((CAST(wins AS FLOAT) / CAST(CASE WHEN matches = 0 THEN 1 ELSE matches END AS FLOAT)) * 100, 1) as winRate
         FROM players 
         ORDER BY score DESC 
-        LIMIT 100
+        LIMIT 5000
     `;
     db.all(query, [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
@@ -78,6 +82,7 @@ app.post('/api/score', (req, res) => {
     const { playerId, name, region, isWin, scoreChange } = req.body;
     if (!playerId) return res.status(400).json({ status: "error", message: "Missing playerId" });
 
+    const change = parseInt(scoreChange) || 0;
     const pureName = cleanName(name);
     const winIncrement = isWin ? 1 : 0;
     const finalRegion = region || 'Global';
@@ -94,12 +99,11 @@ app.post('/api/score', (req, res) => {
             updated_at = CURRENT_TIMESTAMP
     `;
 
-    db.run(sql, [playerId, pureName, finalRegion, winIncrement, scoreChange || 0, winIncrement, scoreChange || 0], function (err) {
+    db.run(sql, [playerId, pureName, finalRegion, winIncrement, change, winIncrement, change], function (err) {
         if (err) {
             console.error("SQL Error:", err.message);
             return res.status(500).json({ status: "error", message: err.message });
         }
-        console.log(`[Score Uploaded] ${pureName} (${playerId}): ${scoreChange > 0 ? '+' : ''}${scoreChange}`);
         res.json({ status: "success" });
     });
 });
@@ -126,6 +130,4 @@ app.delete('/api/admin/player/:playerId', (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log("Server listening on port", PORT);
-});
+app.listen(PORT);
