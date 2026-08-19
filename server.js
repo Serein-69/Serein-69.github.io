@@ -1,247 +1,606 @@
-const express = require('express');
-const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const SERVER_SECRET_KEY = "CRAB_SECRET_KEY_888888";
-
-const ADMIN_STEAM_IDS = [
-    "76561199115475689"
-];
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(__dirname));
-
-function cleanName(name) {
-    if (!name) return "Unknown";
-    return name.replace(/<[^>]*>/g, '').trim();
-}
-
-let dataFolder = __dirname;
-try {
-    if (fs.existsSync('/data')) {
-        dataFolder = '/data';
-    }
-} catch (e) {
-    dataFolder = __dirname;
-}
-
-const dbPath = path.resolve(dataFolder, 'leaderboard.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) console.error("Database error:", err.message);
-    else {
-        db.run("PRAGMA journal_mode = WAL;");
-        db.run("PRAGMA synchronous = NORMAL;");
-    }
-});
-
-const legacyPlayers = [
-    { id: "legacy_1", name: "Habibidope", score: 1545, wins: 346, matches: 458 },
-    { id: "legacy_2", name: "shu", score: 1538, wins: 142, matches: 181 },
-    { id: "legacy_3", name: "Smart", score: 1491, wins: 78, matches: 109 },
-    { id: "legacy_4", name: "de", score: 1471, wins: 82, matches: 123 },
-    { id: "legacy_5", name: "soh", score: 1466, wins: 101, matches: 135 },
-    { id: "legacy_6", name: "cousins by birth", score: 1460, wins: 105, matches: 137 },
-    { id: "legacy_7", name: "dedeador de panchas", score: 1438, wins: 225, matches: 326 },
-    { id: "legacy_8", name: "yogi30dee", score: 1433, wins: 39, matches: 52 },
-    { id: "legacy_9", name: "xzqre", score: 1408, wins: 31, matches: 35 },
-    { id: "legacy_10", name: "sin of pride", score: 1398, wins: 51, matches: 72 },
-    { id: "legacy_11", name: "Dipsy", score: 1392, wins: 345, matches: 570 },
-    { id: "legacy_12", name: "worstplayer", score: 1385, wins: 116, matches: 172 },
-    { id: "legacy_13", name: "4K", score: 1364, wins: 20, matches: 21 },
-    { id: "legacy_14", name: "Silo", score: 1359, wins: 239, matches: 482 },
-    { id: "legacy_15", name: "AGoodRun", score: 1352, wins: 38, matches: 53 },
-    { id: "legacy_16", name: "12Isaac", score: 1347, wins: 542, matches: 889 },
-    { id: "legacy_17", name: "foids are evil", score: 1346, wins: 84, matches: 114 },
-    { id: "legacy_18", name: "Angel$$avior$$", score: 1345, wins: 115, matches: 174 },
-    { id: "legacy_19", name: "Godzy", score: 1344, wins: 28, matches: 35 },
-    { id: "legacy_20", name: "! Copium !", score: 1340, wins: 97, matches: 142 },
-    { id: "legacy_21", name: "Stef", score: 1328, wins: 190, matches: 329 },
-    { id: "legacy_22", name: "astonperez_crabgam", score: 1325, wins: 17, matches: 17 },
-    { id: "legacy_23", name: "re", score: 1323, wins: 430, matches: 642 },
-    { id: "legacy_24", name: "Dawnover", score: 1321, wins: 119, matches: 191 },
-    { id: "legacy_25", name: "xxx", score: 1319, wins: 110, matches: 157 },
-    { id: "legacy_26", name: "dreko's sugar daddy", score: 1310, wins: 29, matches: 35 },
-    { id: "legacy_27", name: "custom os", score: 1305, wins: 58, matches: 94 },
-    { id: "legacy_28", name: "Astolfo", score: 1303, wins: 588, matches: 909 },
-    { id: "legacy_29", name: "dancc", score: 1270, wins: 218, matches: 341 },
-    { id: "legacy_30", name: "carmelo wizzerstand", score: 1269, wins: 237, matches: 394 },
-    { id: "legacy_31", name: "vaca saturnita", score: 1269, wins: 42, matches: 68 },
-    { id: "legacy_32", name: "Storm", score: 1268, wins: 77, matches: 129 },
-    { id: "legacy_33", name: "zZz", score: 1260, wins: 35, matches: 50 },
-    { id: "legacy_34", name: "RayouteGuardz", score: 1258, wins: 26, matches: 30 },
-    { id: "legacy_35", name: "mymy", score: 1256, wins: 34, matches: 55 },
-    { id: "legacy_36", name: "afek4", score: 1255, wins: 59, matches: 108 },
-    { id: "legacy_37", name: "Collapse", score: 1251, wins: 22, matches: 31 },
-    { id: "legacy_38", name: "Lr", score: 1250, wins: 37, matches: 60 },
-    { id: "legacy_39", name: "Albion", score: 1249, wins: 346, matches: 625 },
-    { id: "legacy_40", name: "ShartAttack", score: 1247, wins: 51, matches: 75 },
-    { id: "legacy_41", name: "Eq~Uwu", score: 1246, wins: 25, matches: 36 },
-    { id: "legacy_42", name: "koyznwiy7632", score: 1245, wins: 48, matches: 83 },
-    { id: "legacy_43", name: "顾言.", score: 1243, wins: 26, matches: 39 },
-    { id: "legacy_44", name: "Bendis", score: 1238, wins: 38, matches: 59 },
-    { id: "legacy_45", name: "TheloniousYT", score: 1235, wins: 48, matches: 83 },
-    { id: "legacy_46", name: "The wind carries your name", score: 1231, wins: 348, matches: 542 },
-    { id: "legacy_47", name: "JV", score: 1230, wins: 31, matches: 42 },
-    { id: "legacy_48", name: "yassou95000", score: 1228, wins: 63, matches: 103 },
-    { id: "legacy_49", name: "slut", score: 1227, wins: 37, matches: 66 },
-    { id: "legacy_50", name: "snakexhild", score: 1221, wins: 48, matches: 79 },
-    { id: "legacy_51", name: "Sxpphire", score: 1216, wins: 135, matches: 257 },
-    { id: "legacy_52", name: "orange", score: 1215, wins: 34, matches: 55 },
-    { id: "legacy_53", name: "score", score: 1214, wins: 60, matches: 92 },
-    { id: "legacy_54", name: "wasd", score: 1213, wins: 20, matches: 25 },
-    { id: "legacy_55", name: "#PVS Laik Anime Kızı", score: 1208, wins: 16, matches: 23 },
-    { id: "legacy_56", name: "Unknown_56", score: 1204, wins: 71, matches: 118 },
-    { id: "legacy_57", name: "well47", score: 1204, wins: 18, matches: 23 },
-    { id: "legacy_58", name: "theheatedsandv", score: 1201, wins: 42, matches: 71 },
-    { id: "legacy_59", name: "tek", score: 1200, wins: 14, matches: 25 },
-    { id: "legacy_60", name: "billy", score: 1197, wins: 44, matches: 77 },
-    { id: "legacy_61", name: "Unknown_61", score: 1195, wins: 100, matches: 164 },
-    { id: "legacy_62", name: "What color is my skeleton?", score: 1191, wins: 10, matches: 11 },
-    { id: "legacy_63", name: "[GUILD] BingoBango", score: 1187, wins: 28, matches: 49 },
-    { id: "legacy_64", name: "o7Moon", score: 1181, wins: 51, matches: 88 },
-    { id: "legacy_65", name: "Unknown_65", score: 1179, wins: 45, matches: 65 },
-    { id: "legacy_66", name: "intokyownghoul", score: 1176, wins: 18, matches: 28 },
-    { id: "legacy_67", name: "FLAГSTRИK", score: 1176, wins: 34, matches: 64 },
-    { id: "legacy_68", name: "Noct", score: 1174, wins: 300, matches: 565 },
-    { id: "legacy_69", name: "ЖИРНОГОЛОВЫЙ", score: 1173, wins: 13, matches: 16 },
-    { id: "legacy_70", name: "HIRT İBO", score: 1170, wins: 11, matches: 12 },
-    { id: "legacy_71", name: "vova_minecraft", score: 1168, wins: 16, matches: 23 },
-    { id: "legacy_72", name: "kruuuu", score: 1160, wins: 433, matches: 883 },
-    { id: "legacy_73", name: "p1xma", score: 1156, wins: 19, matches: 25 },
-    { id: "legacy_74", name: "js another life altering event", score: 1154, wins: 14, matches: 18 },
-    { id: "legacy_75", name: "Unknown_75", score: 1152, wins: 34, matches: 74 },
-    { id: "legacy_76", name: "Seu 1925", score: 1152, wins: 17, matches: 25 },
-    { id: "legacy_77", name: "DAY1", score: 1151, wins: 19, matches: 32 },
-    { id: "legacy_78", name: "BOMBA SKIAK MR (бабай)", score: 1150, wins: 27, matches: 47 },
-    { id: "legacy_79", name: "crab game's hero", score: 1148, wins: 10, matches: 10 },
-    { id: "legacy_80", name: "nazwa profilu", score: 1147, wins: 50, matches: 84 },
-    { id: "legacy_81", name: "KOSHENYA", score: 1143, wins: 109, matches: 231 },
-    { id: "legacy_82", name: "✘adaanha✘", score: 1142, wins: 118, matches: 244 },
-    { id: "legacy_83", name: "6ix9ine", score: 1139, wins: 14, matches: 25 },
-    { id: "legacy_84", name: "K,Gambit", score: 1139, wins: 14, matches: 21 },
-    { id: "legacy_85", name: "NOIR ॐ", score: 1137, wins: 13, matches: 16 },
-    { id: "legacy_86", name: "Unknown_86", score: 1137, wins: 49, matches: 94 },
-    { id: "legacy_87", name: "Unknown_87", score: 1134, wins: 425, matches: 783 },
-    { id: "legacy_88", name: "wachin de goma", score: 1134, wins: 10, matches: 10 },
-    { id: "legacy_89", name: "billie", score: 1134, wins: 18, matches: 41 },
-    { id: "legacy_90", name: "Kaizen", score: 1133, wins: 12, matches: 16 },
-    { id: "legacy_91", name: "zombieslayer", score: 1132, wins: 12, matches: 15 },
-    { id: "legacy_92", name: "Roulacase", score: 1131, wins: 7, matches: 7 },
-    { id: "76561199115475689", name: "Serein", score: 1125, wins: 62, matches: 101 },
-    { id: "legacy_94", name: "russo", score: 1125, wins: 7, matches: 7 },
-    { id: "legacy_95", name: "Z._.R", score: 1122, wins: 14, matches: 22 },
-    { id: "legacy_96", name: "haru", score: 1122, wins: 9, matches: 11 },
-    { id: "legacy_97", name: "Unknown_97", score: 1121, wins: 8, matches: 10 },
-    { id: "legacy_98", name: "XLR8", score: 1119, wins: 12, matches: 19 },
-    { id: "legacy_99", name: "[PFF] Astal", score: 1117, wins: 16, matches: 29 },
-    { id: "legacy_100", name: "wit", score: 1117, wins: 50, matches: 111 }
-];
-
-db.serialize(() => {
-    db.run(`
-        CREATE TABLE IF NOT EXISTS players (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            player_id TEXT UNIQUE,
-            name TEXT NOT NULL,
-            region TEXT DEFAULT 'Global',
-            wins INTEGER DEFAULT 0,
-            matches INTEGER DEFAULT 0,
-            score INTEGER DEFAULT 1000,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC);`);
-
-    const stmt = db.prepare(`
-        INSERT INTO players (player_id, name, region, wins, matches, score)
-        VALUES (?, ?, 'Global', ?, ?, ?)
-        ON CONFLICT(player_id) DO NOTHING
-    `);
-
-    legacyPlayers.forEach(p => {
-        stmt.run(p.id, cleanName(p.name), p.wins, p.matches, p.score);
-    });
-    stmt.finalize();
-});
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-app.get('/api/leaderboard', (req, res) => {
-    const query = `
-        SELECT player_id, name, region, wins, matches, score,
-               ROUND((CAST(wins AS FLOAT) / CAST(CASE WHEN matches = 0 THEN 1 ELSE matches END AS FLOAT)) * 100, 1) as winRate
-        FROM players 
-        ORDER BY score DESC 
-        LIMIT 5000
-    `;
-    db.all(query, [], (err, rows) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", data: rows || [] });
-    });
-});
-
-app.post('/api/score', (req, res) => {
-    const apiKey = req.headers['x-api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) {
-        return res.status(403).json({ status: "error", message: "Forbidden" });
-    }
-
-    const { playerId, name, region, isWin, scoreChange } = req.body;
-    if (!playerId) return res.status(400).json({ status: "error", message: "Missing playerId" });
-
-    const change = parseInt(scoreChange) || 0;
-    const pureName = cleanName(name);
-    const winIncrement = isWin ? 1 : 0;
-    const finalRegion = region || 'Global';
-
-    const sql = `
-        INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-        VALUES (?, ?, ?, ?, 1, 1000 + ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(player_id) DO UPDATE SET
-            name = excluded.name,
-            region = excluded.region,
-            wins = players.wins + ?,
-            matches = players.matches + 1,
-            score = MAX(0, players.score + ?),
-            updated_at = CURRENT_TIMESTAMP
-    `;
-
-    db.run(sql, [playerId, pureName, finalRegion, winIncrement, change, winIncrement, change], function (err) {
-        if (err) {
-            console.error("SQL Error:", err.message);
-            return res.status(500).json({ status: "error", message: err.message });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crab Game Ranking - Global Leaderboard</title>
+    <style>
+        :root {
+            --bg-main: #0a0b0e;
+            --bg-card: #12141c;
+            --bg-card-hover: #1a1d29;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: #9333ea;
+            --primary-gradient: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+            --accent-pink: #ec4899;
+            --accent-cyan: #06b6d4;
+            --gold: #ffd700;
+            --silver: #e2e8f0;
+            --bronze: #d97706;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
         }
-        res.json({ status: "success" });
-    });
-});
 
-app.post('/api/admin/verify', (req, res) => {
-    const { steamId } = req.body;
-    if (steamId && ADMIN_STEAM_IDS.includes(steamId.trim())) {
-        res.json({ status: "success" });
-    } else {
-        res.status(403).json({ status: "error" });
-    }
-});
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text-main); line-height: 1.5; overflow-x: hidden; }
 
-app.delete('/api/admin/player/:playerId', (req, res) => {
-    const adminSteamId = req.headers['x-admin-id'];
-    if (!adminSteamId || !ADMIN_STEAM_IDS.includes(adminSteamId.trim())) {
-        return res.status(403).json({ status: "error" });
-    }
+        .navbar {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 40px; background: rgba(10, 11, 14, 0.85);
+            backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-color);
+            position: sticky; top: 0; z-index: 100;
+        }
+        .nav-left { display: flex; align-items: center; gap: 35px; }
+        .logo { font-size: 1.4rem; font-weight: 900; letter-spacing: 1.5px; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .nav-right { display: flex; align-items: center; gap: 15px; }
 
-    const targetPlayerId = req.params.playerId;
-    db.run("DELETE FROM players WHERE player_id = ?", [targetPlayerId], function (err) {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success" });
-    });
-});
+        .lang-select {
+            background: #181b26; color: #fff; border: 1px solid var(--border-color);
+            padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; outline: none; transition: border-color 0.2s;
+        }
+        .lang-select:hover { border-color: var(--accent-pink); }
+        .btn-admin-auth {
+            background: var(--primary-gradient); color: #fff; border: none;
+            padding: 8px 18px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;
+            cursor: pointer; transition: opacity 0.2s;
+        }
+        .btn-admin-auth:hover { opacity: 0.9; }
 
-app.listen(PORT);
+        .container { max-width: 1240px; margin: 0 auto; padding: 30px 20px; }
+
+        .hero {
+            position: relative; border-radius: 16px; overflow: hidden;
+            background: linear-gradient(180deg, rgba(147, 51, 234, 0.15) 0%, rgba(10, 11, 14, 0) 100%), #141622;
+            border: 1px solid var(--border-color); padding: 45px 40px; margin-bottom: 30px;
+        }
+        .hero-badge { color: var(--accent-pink); font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+        .hero-title { font-size: 2.6rem; font-weight: 900; line-height: 1.1; margin-bottom: 15px; }
+        .hero-title span { background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .stats-bar {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;
+            background: rgba(18, 20, 28, 0.6); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 20px; margin-top: 25px;
+        }
+        .stat-item { display: flex; align-items: center; gap: 15px; }
+        .stat-icon { font-size: 1.8rem; background: #1c1f2e; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        .stat-val { font-size: 1.3rem; font-weight: 800; }
+        .stat-lbl { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
+
+        .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; margin-bottom: 40px; }
+
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .card-title { font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+
+        .search-wrapper { position: relative; width: 220px; }
+        .search-input { width: 100%; background: #0c0e14; border: 1px solid var(--border-color); color: #fff; padding: 8px 12px 8px 32px; border-radius: 6px; font-size: 0.85rem; outline: none; }
+        .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted); }
+
+        .ranking-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .ranking-table th { padding: 12px 10px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-weight: 700; }
+        .ranking-table td { padding: 14px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; }
+        .ranking-table tr:hover td { background: var(--bg-card-hover); }
+
+        .rank-num { font-weight: 800; font-size: 0.95rem; width: 35px; }
+        .rank-1 { color: var(--gold); }
+        .rank-2 { color: var(--silver); }
+        .rank-3 { color: var(--bronze); }
+
+        .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+        .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
+        
+        /* 🌟 恢复经典青蓝色高亮分数 */
+        .score-badge { font-weight: 900; color: var(--accent-cyan); font-size: 0.95rem; }
+        
+        .btn-del-mini { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
+        .btn-del-mini:hover { background: #ef4444; color: #fff; }
+
+        .tier-tag {
+            display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .tier-gm { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid #f43f5e; box-shadow: 0 0 8px rgba(244, 63, 94, 0.3); }
+        .tier-master { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid #c084fc; }
+        .tier-diamond { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid #38bdf8; }
+        .tier-platinum { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #34d399; }
+        .tier-gold { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #fbbf24; }
+        .tier-silver { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid #cbd5e1; }
+        .tier-bronze { background: rgba(217, 119, 6, 0.15); color: #f97316; border: 1px solid #f97316; }
+
+        .pagination-container {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);
+            flex-wrap: wrap; gap: 10px;
+        }
+        .pagination-info { color: var(--text-muted); font-size: 0.8rem; font-weight: 600; }
+        .pagination-controls { display: flex; gap: 6px; align-items: center; }
+        .page-btn {
+            background: #141722; color: var(--text-muted); border: 1px solid var(--border-color);
+            padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 700;
+            cursor: pointer; transition: all 0.2s; outline: none;
+        }
+        .page-btn:hover:not(:disabled) { background: #1f2333; color: #fff; border-color: var(--accent-pink); }
+        .page-btn.active {
+            background: var(--primary-gradient); color: #fff; border-color: transparent;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+        }
+        .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+        .mvp-card {
+            background: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.25), transparent 70%), var(--bg-card);
+            border: 1px solid var(--border-color); border-radius: 14px; padding: 25px; text-align: center; position: relative;
+        }
+        .mvp-badge-top { font-size: 0.75rem; font-weight: 800; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 15px; }
+        .mvp-avatar-glow {
+            width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 12px;
+            background: linear-gradient(135deg, var(--primary), var(--accent-pink));
+            padding: 3px; box-shadow: 0 0 25px rgba(168, 85, 247, 0.6);
+        }
+        .mvp-avatar-glow div { width: 100%; height: 100%; border-radius: 50%; background: #0c0e14; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: var(--gold); }
+        .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; }
+        .mvp-tier-box { margin-bottom: 8px; }
+        .mvp-score { font-size: 1.8rem; font-weight: 900; color: var(--accent-cyan); }
+        .mvp-score-sub { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+        footer { border-top: 1px solid var(--border-color); padding: 40px 0 20px; background: #07080a; }
+        .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 30px; max-width: 1240px; margin: 0 auto; padding: 0 20px 20px; }
+        .footer-logo { font-size: 1.2rem; font-weight: 900; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+        .footer-desc { font-size: 0.85rem; color: var(--text-muted); max-width: 320px; }
+        .copyright { text-align: center; color: #555; font-size: 0.75rem; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 20px; }
+
+        @media (max-width: 900px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .hero-title { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-left">
+            <div class="logo">CRAB GAME RANKING</div>
+        </div>
+        <div class="nav-right">
+            <select class="lang-select" id="languageSelector" onchange="changeLanguage(this.value)">
+                <option value="en">English (EN)</option>
+                <option value="zh">简体中文 (ZH)</option>
+                <option value="ru">Русский (RU)</option>
+                <option value="tr">Türkçe (TR)</option>
+            </select>
+            <button class="btn-admin-auth" id="btnAdminAuth" onclick="handleAdminAuth()" data-i18n="btn_admin">Admin Auth</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <section class="hero">
+            <div class="hero-badge" data-i18n="hero_badge">Global Competitive Ladder</div>
+            <h1 class="hero-title"><span data-i18n="hero_title_1">CRAB GAME</span><br><span data-i18n="hero_title_2">GLOBAL RANKINGS</span></h1>
+
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <div class="stat-icon">👥</div>
+                    <div>
+                        <div class="stat-val" id="statPlayers">0</div>
+                        <div class="stat-lbl" data-i18n="stat_players">Ranked Players</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">🎮</div>
+                    <div>
+                        <div class="stat-val" id="statMatches">0</div>
+                        <div class="stat-lbl" data-i18n="stat_matches">Total Matches</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">🔥</div>
+                    <div>
+                        <div class="stat-val" id="statTopMMR">1,000</div>
+                        <div class="stat-lbl" data-i18n="stat_top_mmr">Highest MMR</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">⚡</div>
+                    <div>
+                        <div class="stat-val" style="color: #10b981;">Online</div>
+                        <div class="stat-lbl" data-i18n="stat_status">Live Sync Active</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="main-grid" id="leaderboardSection">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>🏆</span> <span data-i18n="table_title">World Rankings</span>
+                    </div>
+                    <div class="search-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" class="search-input" id="searchInput" placeholder="Search player..." data-i18n-ph="search_ph">
+                    </div>
+                </div>
+
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="th_rank">#</th>
+                            <th data-i18n="th_player">Player</th>
+                            <th data-i18n="th_tier">Tier Rank</th>
+                            <th data-i18n="th_mmr">MMR Score</th>
+                            <th data-i18n="th_wl">W - L</th>
+                            <th data-i18n="th_winrate">Win Rate</th>
+                            <th id="thAdmin" style="display:none;" data-i18n="th_action">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                    </tbody>
+                </table>
+
+                <div class="pagination-container" id="paginationContainer">
+                    <div class="pagination-info" id="paginationInfo">Showing 1-10 of 0 players</div>
+                    <div class="pagination-controls" id="paginationControls">
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="mvp-card">
+                    <div class="mvp-badge-top" data-i18n="mvp_title">👑 Current Rank #1</div>
+                    <div class="mvp-avatar-glow">
+                        <div id="mvpAvatar">👑</div>
+                    </div>
+                    <div class="mvp-name" id="mvpName">No Player Yet</div>
+                    <div class="mvp-tier-box" id="mvpTierBox"></div>
+                    <div class="mvp-score" id="mvpScore">0</div>
+                    <div class="mvp-score-sub" data-i18n="mvp_rating">Global Rating</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="footer-grid">
+            <div>
+                <div class="footer-logo">CRAB GAME RANKING</div>
+                <p class="footer-desc" data-i18n="footer_desc">The premier global competitive ranking platform for Crab Game players worldwide.</p>
+            </div>
+        </div>
+        <div class="copyright">
+            © 2024-2026 Crab Game Ranking System. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        const API_URL = "https://serein-69githubio-production.up.railway.app/api";
+        let cachedPlayers = JSON.parse(localStorage.getItem('crab_cached_leaderboard') || '[]');
+
+        let currentPage = 1;
+        const pageSize = 10;
+
+        const I18N = {
+            en: {
+                btn_admin: "Admin Auth",
+                hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
+                stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
+                table_title: "World Rankings", search_ph: "Search player...",
+                th_rank: "#", th_player: "Player", th_tier: "Rank", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate", th_action: "Action",
+                mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
+                footer_desc: "The premier global competitive ranking platform for Crab Game players worldwide.",
+                pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
+                msg_del_confirm: "Are you sure you want to delete this player from rankings?",
+                msg_admin_prompt: "Enter Admin Steam64 ID:"
+            },
+            zh: {
+                btn_admin: "管理员验证",
+                hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
+                stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
+                table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
+                th_rank: "排名", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率", th_action: "操作",
+                mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
+                footer_desc: "专为全球 Crab Game 竞技玩家打造的权威天梯排位与数据分析平台。",
+                pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
+                msg_del_confirm: "确定要从排行榜中彻底删除该玩家吗？",
+                msg_admin_prompt: "请输入管理员 Steam64 位 ID："
+            },
+            ru: {
+                btn_admin: "Админ",
+                hero_badge: "Глобальный рейтинг", hero_title_1: "CRAB GAME", hero_title_2: "МИРОВОЙ РЕЙТИНГ",
+                stat_players: "Игроков", stat_matches: "Матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация",
+                table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
+                th_rank: "#", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR Рейтинг", th_wl: "В - П", th_winrate: "Винрейт", th_action: "Действие",
+                mvp_title: "👑 Лидер рейтинга", mvp_rating: "Общий рейтинг",
+                footer_desc: "Официальная рейтинговая платформа для игроков Crab Game по всему миру.",
+                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
+                msg_del_confirm: "Вы уверены, что хотите удалить этого игрока?",
+                msg_admin_prompt: "Введите Steam64 ID администратора:"
+            },
+            tr: {
+                btn_admin: "Yönetici",
+                hero_badge: "Dünyanın En İyi", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
+                stat_players: "Kayıtlı Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek Puan", stat_status: "Aktif",
+                table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
+                th_rank: "#", th_player: "Oyuncu", th_tier: "Kademe", th_mmr: "MMR Puanı", th_wl: "G - M", th_winrate: "Kazanma Oranı", th_action: "İşlem",
+                mvp_title: "👑 Ayın En İyi Oyuncusu", mvp_rating: "Genel Puan",
+                footer_desc: "Crab Game oyuncuları için küresel rekabetçi sıralama ve veri platformu.",
+                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
+                msg_del_confirm: "Bu oyuncuyu sıralamadan silmek istediğinize emin misiniz?",
+                msg_admin_prompt: "Yönetici Steam64 ID girin:"
+            }
+        };
+
+        let currentLang = localStorage.getItem('crab_ranking_lang') || 'en';
+
+        function getTierInfo(score) {
+            if (score >= 1400) return { name: "GM IV", class: "tier-gm" };
+            if (score >= 1390) return { name: "GM III", class: "tier-gm" };
+            if (score >= 1375) return { name: "GM II", class: "tier-gm" };
+            if (score >= 1350) return { name: "GM I", class: "tier-gm" };
+
+            if (score >= 1330) return { name: "Master IV", class: "tier-master" };
+            if (score >= 1320) return { name: "Master III", class: "tier-master" };
+            if (score >= 1310) return { name: "Master II", class: "tier-master" };
+            if (score >= 1300) return { name: "Master I", class: "tier-master" };
+
+            if (score >= 1260) return { name: "Diamond II", class: "tier-diamond" };
+            if (score >= 1245) return { name: "Diamond I", class: "tier-diamond" };
+
+            if (score >= 1230) return { name: "Platinum IV", class: "tier-platinum" };
+            if (score >= 1210) return { name: "Platinum III", class: "tier-platinum" };
+            if (score >= 1190) return { name: "Platinum II", class: "tier-platinum" };
+            if (score >= 1170) return { name: "Platinum I", class: "tier-platinum" };
+
+            if (score >= 1150) return { name: "Gold IV", class: "tier-gold" };
+            if (score >= 1125) return { name: "Gold III", class: "tier-gold" };
+            if (score >= 1110) return { name: "Gold II", class: "tier-gold" };
+            if (score >= 1100) return { name: "Gold I", class: "tier-gold" };
+
+            if (score >= 1050) return { name: "Silver II", class: "tier-silver" };
+            if (score >= 1000) return { name: "Silver I", class: "tier-silver" };
+            return { name: "Bronze", class: "tier-bronze" };
+        }
+
+        function changeLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('crab_ranking_lang', lang);
+            document.getElementById('languageSelector').value = lang;
+
+            const t = I18N[lang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.innerText = t[key];
+            });
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+                const key = el.getAttribute('data-i18n-ph');
+                if (t[key]) el.placeholder = t[key];
+            });
+
+            renderUI(document.getElementById('searchInput').value);
+        }
+
+        function getAdminSteamId() { return localStorage.getItem('crab_admin_steamid'); }
+
+        async function handleAdminAuth() {
+            const adminId = getAdminSteamId();
+            if (adminId) {
+                if (confirm("Logout Admin?")) {
+                    localStorage.removeItem('crab_admin_steamid');
+                    updateAdminUI();
+                    renderUI();
+                }
+            } else {
+                const inputId = prompt(I18N[currentLang].msg_admin_prompt);
+                if (!inputId) return;
+
+                try {
+                    const res = await fetch(`${API_URL}/admin/verify`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ steamId: inputId.trim() })
+                    });
+                    const data = await res.json();
+                    if (data.status === "success") {
+                        localStorage.setItem('crab_admin_steamid', inputId.trim());
+                        alert("Admin Verified!");
+                        updateAdminUI();
+                        renderUI();
+                    } else {
+                        alert("Failed: " + data.message);
+                    }
+                } catch { alert("Connection Error"); }
+            }
+        }
+
+        function updateAdminUI() {
+            const adminId = getAdminSteamId();
+            const btn = document.getElementById('btnAdminAuth');
+            const thAdmin = document.getElementById('thAdmin');
+
+            if (adminId) {
+                btn.innerText = `Admin (${adminId.substring(0, 6)}..)`;
+                btn.style.background = "#10b981";
+                thAdmin.style.display = "table-cell";
+            } else {
+                btn.innerText = I18N[currentLang].btn_admin;
+                btn.style.background = "var(--primary-gradient)";
+                thAdmin.style.display = "none";
+            }
+        }
+
+        async function loadLeaderboard() {
+            try {
+                const res = await fetch(`${API_URL}/leaderboard`);
+                const result = await res.json();
+                if (result.status === "success") {
+                    cachedPlayers = result.data || [];
+                    localStorage.setItem('crab_cached_leaderboard', JSON.stringify(cachedPlayers));
+                    updateHeroStats();
+                    renderUI(document.getElementById('searchInput').value);
+                }
+            } catch (err) {
+                console.error("Fetch Error:", err);
+            }
+        }
+
+        function updateHeroStats() {
+            document.getElementById('statPlayers').innerText = cachedPlayers.length.toLocaleString();
+            let totalMatches = cachedPlayers.reduce((acc, p) => acc + (p.matches || 0), 0);
+            document.getElementById('statMatches').innerText = totalMatches.toLocaleString();
+
+            if (cachedPlayers.length > 0) {
+                document.getElementById('statTopMMR').innerText = cachedPlayers[0].score.toLocaleString();
+
+                const top1 = cachedPlayers[0];
+                const top1Tier = getTierInfo(top1.score);
+                document.getElementById('mvpName').innerText = top1.name;
+                document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
+                document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
+                document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
+            }
+        }
+
+        function renderUI(query = "") {
+            const tbody = document.getElementById('leaderboardBody');
+            const isAdmin = !!getAdminSteamId();
+            const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+
+            tbody.innerHTML = "";
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666; padding:30px;">No players found</td></tr>`;
+                renderPagination(0);
+                return;
+            }
+
+            const totalPages = Math.ceil(list.length / pageSize) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageList = list.slice(startIndex, endIndex);
+
+            pageList.forEach((p, idx) => {
+                const rank = startIndex + idx + 1;
+                let rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "";
+                let rankIcon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+
+                const tier = getTierInfo(p.score);
+                const losses = Math.max(0, (p.matches || 0) - (p.wins || 0));
+                const winRateFormatted = (parseFloat(p.winRate) || 0).toFixed(1);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="rank-num ${rankClass}">${rankIcon}</td>
+                    <td>
+                        <div class="player-cell">
+                            <div class="player-avatar">${p.name.substring(0, 1).toUpperCase()}</div>
+                            <span>${p.name}</span>
+                        </div>
+                    </td>
+                    <td><span class="tier-tag ${tier.class}">${tier.name}</span></td>
+                    <td><span class="score-badge">${p.score.toLocaleString()}</span></td>
+                    <td style="color:var(--text-muted); font-size:0.85rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
+                    <td><span style="color:#10b981; font-weight:800;">${winRateFormatted}%</span></td>
+                    ${isAdmin ? `<td><button class="btn-del-mini" onclick="deletePlayer('${p.player_id}')">Delete</button></td>` : ''}
+                `;
+                tbody.appendChild(tr);
+            });
+
+            renderPagination(list.length);
+        }
+
+        function renderPagination(totalItems) {
+            const controls = document.getElementById('paginationControls');
+            const info = document.getElementById('paginationInfo');
+            const totalPages = Math.ceil(totalItems / pageSize) || 1;
+            const t = I18N[currentLang];
+
+            if (totalItems === 0) {
+                info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
+            } else {
+                const start = (currentPage - 1) * pageSize + 1;
+                const end = Math.min(currentPage * pageSize, totalItems);
+                info.innerText = `${t.pg_showing} ${start}-${end} ${t.pg_of} ${totalItems} ${t.pg_players}`;
+            }
+
+            controls.innerHTML = "";
+            if (totalPages <= 1) return;
+
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'page-btn';
+            prevBtn.innerText = t.pg_prev;
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderUI(document.getElementById('searchInput').value);
+                }
+            };
+            controls.appendChild(prevBtn);
+
+            for (let i = 1; i <= totalPages; i++) {
+                if (totalPages > 6 && Math.abs(i - currentPage) > 2 && i !== 1 && i !== totalPages) {
+                    if (i === 2 || i === totalPages - 1) {
+                        const dots = document.createElement('span');
+                        dots.innerText = "...";
+                        dots.style.color = "#666";
+                        dots.style.padding = "0 3px";
+                        controls.appendChild(dots);
+                    }
+                    continue;
+                }
+
+                const numBtn = document.createElement('button');
+                numBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+                numBtn.innerText = i;
+                numBtn.onclick = () => {
+                    currentPage = i;
+                    renderUI(document.getElementById('searchInput').value);
+                };
+                controls.appendChild(numBtn);
+            }
+
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'page-btn';
+            nextBtn.innerText = t.pg_next;
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderUI(document.getElementById('searchInput').value);
+                }
+            };
+            controls.appendChild(nextBtn);
+        }
+
+        async function deletePlayer(playerId) {
+            if (!confirm(I18N[currentLang].msg_del_confirm)) return;
+            const res = await fetch(`${API_URL}/admin/player/${playerId}`, {
+                method: 'DELETE',
+                headers: { 'x-admin-id': getAdminSteamId() }
+            });
+            const data = await res.json();
+            alert(data.message);
+            if (data.status === "success") loadLeaderboard();
+        }
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            currentPage = 1;
+            renderUI(e.target.value);
+        });
+
+        changeLanguage(currentLang);
+        updateAdminUI();
+        if (cachedPlayers.length > 0) {
+            updateHeroStats();
+            renderUI();
+        }
+        loadLeaderboard();
+
+        setInterval(loadLeaderboard, 5000);
+    </script>
+</body>
+</html>
