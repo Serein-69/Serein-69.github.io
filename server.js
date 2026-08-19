@@ -17,7 +17,15 @@ app.use(express.static(__dirname));
 
 function cleanName(name) {
     if (!name) return "Unknown";
-    return String(name).replace(/<[^>]*>/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '').trim() || "Unknown";
+    return String(name)
+        .replace(/<color=[^>]*>/gi, '')
+        .replace(/<\/color>/gi, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\[[0-9a-fA-F]{6}\]/g, '')
+        .replace(/\[\^[0-9]\]/g, '')
+        .replace(/<#[\da-fA-F]+>/g, '')
+        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
+        .trim() || "Unknown";
 }
 
 let dataFolder = __dirname;
@@ -39,7 +47,6 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// 初始化数据库、自动迁移与清洗旧假数据
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -56,29 +63,26 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 
-    // 核心修复 1：清除所有非纯数字的遗留假 ID 数据（例如 legacy_xx）
     db.run(`DELETE FROM players WHERE player_id NOT GLOB '[0-9]*'`);
 
-    // 核心修复 2：将 CSV 中真实的 SteamID 玩家导入，如果已存在 SteamID 则保留真实分数不覆盖
     db.run("BEGIN TRANSACTION;");
     const stmt = db.prepare(`
         INSERT INTO players (player_id, name, region, wins, matches, score)
         VALUES (?, ?, 'Global', ?, ?, ?)
         ON CONFLICT(player_id) DO UPDATE SET
-            name = CASE WHEN excluded.name != 'Unknown' THEN excluded.name ELSE players.name END
+            name = excluded.name
     `);
 
     if (Array.isArray(initialPlayers)) {
         initialPlayers.forEach(p => {
             if (p && p.id && /^\d+$/.test(String(p.id).trim())) {
-                const sid = String(p.id).trim();
-                stmt.run(sid, cleanName(p.name), p.wins || 0, p.matches || 0, p.score || 1000);
+                stmt.run(String(p.id).trim(), cleanName(p.name), p.wins || 0, p.matches || 0, p.score || 1000);
             }
         });
     }
     stmt.finalize();
     db.run("COMMIT;", () => {
-        console.log("[DB] Steam 数据库数据校准完成，旧假数据已全部清理！");
+        console.log("[DB] 玩家数据校准清洗完毕，已剔除所有颜色代码！");
     });
 });
 
@@ -86,7 +90,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜数据接口
 app.get('/api/leaderboard', (req, res) => {
     const query = `
         SELECT player_id, name, region, wins, matches, score,
@@ -101,7 +104,6 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 核心：基于 SteamID 精准变动分数
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
