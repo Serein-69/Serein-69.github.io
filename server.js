@@ -40,12 +40,6 @@
             cursor: pointer; outline: none; transition: border-color 0.2s;
         }
         .lang-select:hover { border-color: var(--accent-pink); }
-        .btn-admin-auth {
-            background: var(--primary-gradient); color: #fff; border: none;
-            padding: 8px 18px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;
-            cursor: pointer; transition: opacity 0.2s;
-        }
-        .btn-admin-auth:hover { opacity: 0.9; }
 
         .container { max-width: 1240px; margin: 0 auto; padding: 30px 20px; }
 
@@ -92,9 +86,6 @@
         .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
         
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
-        
-        .btn-del-mini { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
-        .btn-del-mini:hover { background: #ef4444; color: #fff; }
 
         .tier-tag {
             display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
@@ -170,7 +161,6 @@
                 <option value="ru">Русский (RU)</option>
                 <option value="tr">Türkçe (TR)</option>
             </select>
-            <button class="btn-admin-auth" id="btnAdminAuth" onclick="handleAdminAuth()" data-i18n="btn_admin">Admin Auth</button>
         </div>
     </nav>
 
@@ -232,7 +222,6 @@
                             <th data-i18n="th_mmr">MMR Score</th>
                             <th data-i18n="th_wl">W - L</th>
                             <th data-i18n="th_winrate">Win Rate</th>
-                            <th id="thAdmin" style="display:none;" data-i18n="th_action">Action</th>
                         </tr>
                     </thead>
                     <tbody id="leaderboardBody">
@@ -282,52 +271,40 @@
 
         const I18N = {
             en: {
-                btn_admin: "Admin Auth",
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
-                th_rank: "#", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate", th_action: "Action",
+                th_rank: "#", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
                 footer_desc: "The premier global competitive ranking platform for Crab Game players worldwide.",
-                pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
-                msg_del_confirm: "Are you sure you want to delete this player from rankings?",
-                msg_admin_prompt: "Enter Admin Steam64 ID:"
+                pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next"
             },
             zh: {
-                btn_admin: "管理员验证",
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
-                th_rank: "排名", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率", th_action: "操作",
+                th_rank: "排名", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率",
                 mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
                 footer_desc: "专为全球 Crab Game 竞技玩家打造的权威天梯排位与数据分析平台。",
-                pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
-                msg_del_confirm: "确定要从排行榜中彻底删除该玩家吗？",
-                msg_admin_prompt: "请输入管理员 Steam64 位 ID："
+                pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页"
             },
             ru: {
-                btn_admin: "Админ",
                 hero_badge: "Глобальный рейтинг", hero_title_1: "CRAB GAME", hero_title_2: "МИРОВОЙ РЕЙТИНГ",
                 stat_players: "Игроков", stat_matches: "Матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
-                th_rank: "#", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR Рейтинг", th_wl: "В - П", th_winrate: "Винрейт", th_action: "Действие",
+                th_rank: "#", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR Рейтинг", th_wl: "В - П", th_winrate: "Винрейт",
                 mvp_title: "👑 Лидер рейтинга", mvp_rating: "Общий рейтинг",
                 footer_desc: "Официальная рейтинговая платформа для игроков Crab Game по всему миру.",
-                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
-                msg_del_confirm: "Вы уверены, что хотите удалить этого игрока?",
-                msg_admin_prompt: "Введите Steam64 ID администратора:"
+                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед"
             },
             tr: {
-                btn_admin: "Yönetici",
                 hero_badge: "Dünyanın En İyi", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
                 stat_players: "Kayıtlı Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek Puan", stat_status: "Aktif",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
-                th_rank: "#", th_player: "Oyuncu", th_tier: "Kademe", th_mmr: "MMR Puanı", th_wl: "G - M", th_winrate: "Kazanma Oranı", th_action: "İşlem",
+                th_rank: "#", th_player: "Oyuncu", th_tier: "Kademe", th_mmr: "MMR Puanı", th_wl: "G - M", th_winrate: "Kazanma Oranı",
                 mvp_title: "👑 Ayın En İyi Oyuncusu", mvp_rating: "Genel Puan",
                 footer_desc: "Crab Game oyuncuları için küresel rekabetçi sıralama ve veri platformu.",
-                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
-                msg_del_confirm: "Bu oyuncuyu sıralamadan silmek istediğinize emin misiniz?",
-                msg_admin_prompt: "Yönetici Steam64 ID girin:"
+                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki"
             }
         };
 
@@ -380,55 +357,6 @@
             renderUI(document.getElementById('searchInput').value);
         }
 
-        function getAdminSteamId() { return localStorage.getItem('crab_admin_steamid'); }
-
-        async function handleAdminAuth() {
-            const adminId = getAdminSteamId();
-            if (adminId) {
-                if (confirm("Logout Admin?")) {
-                    localStorage.removeItem('crab_admin_steamid');
-                    updateAdminUI();
-                    renderUI();
-                }
-            } else {
-                const inputId = prompt(I18N[currentLang].msg_admin_prompt);
-                if (!inputId) return;
-
-                try {
-                    const res = await fetch(`${API_URL}/admin/verify`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ steamId: inputId.trim() })
-                    });
-                    const data = await res.json();
-                    if (data.status === "success") {
-                        localStorage.setItem('crab_admin_steamid', inputId.trim());
-                        alert("Admin Verified!");
-                        updateAdminUI();
-                        renderUI();
-                    } else {
-                        alert("Failed: " + data.message);
-                    }
-                } catch { alert("Connection Error"); }
-            }
-        }
-
-        function updateAdminUI() {
-            const adminId = getAdminSteamId();
-            const btn = document.getElementById('btnAdminAuth');
-            const thAdmin = document.getElementById('thAdmin');
-
-            if (adminId) {
-                btn.innerText = `Admin (${adminId.substring(0, 6)}..)`;
-                btn.style.background = "#10b981";
-                thAdmin.style.display = "table-cell";
-            } else {
-                btn.innerText = I18N[currentLang].btn_admin;
-                btn.style.background = "var(--primary-gradient)";
-                thAdmin.style.display = "none";
-            }
-        }
-
         async function loadLeaderboard() {
             try {
                 const res = await fetch(`${API_URL}/leaderboard`);
@@ -463,13 +391,12 @@
 
         function renderUI(query = "") {
             const tbody = document.getElementById('leaderboardBody');
-            const isAdmin = !!getAdminSteamId();
             const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
 
             tbody.innerHTML = "";
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666; padding:30px;">No players found</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">No players found</td></tr>`;
                 renderPagination(0);
                 return;
             }
@@ -503,7 +430,6 @@
                     <td><span class="score-badge">${p.score.toLocaleString()}</span></td>
                     <td style="color:var(--text-muted); font-size:0.85rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
                     <td><span style="color:#10b981; font-weight:800;">${winRateFormatted}%</span></td>
-                    ${isAdmin ? `<td><button class="btn-del-mini" onclick="deletePlayer('${p.player_id}')">Delete</button></td>` : ''}
                 `;
                 tbody.appendChild(tr);
             });
@@ -575,24 +501,12 @@
             controls.appendChild(nextBtn);
         }
 
-        async function deletePlayer(playerId) {
-            if (!confirm(I18N[currentLang].msg_del_confirm)) return;
-            const res = await fetch(`${API_URL}/admin/player/${playerId}`, {
-                method: 'DELETE',
-                headers: { 'x-admin-id': getAdminSteamId() }
-            });
-            const data = await res.json();
-            alert(data.message);
-            if (data.status === "success") loadLeaderboard();
-        }
-
         document.getElementById('searchInput').addEventListener('input', (e) => {
             currentPage = 1;
             renderUI(e.target.value);
         });
 
         changeLanguage(currentLang);
-        updateAdminUI();
         if (cachedPlayers.length > 0) {
             updateHeroStats();
             renderUI();
