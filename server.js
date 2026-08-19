@@ -21,9 +21,20 @@ function cleanName(name) {
     return name.replace(/<[^>]*>/g, '').trim();
 }
 
-const dataFolder = fs.existsSync('/data') ? '/data' : __dirname;
+let dataFolder = __dirname;
+try {
+    if (fs.existsSync('/data')) {
+        dataFolder = '/data';
+    }
+} catch (e) {
+    dataFolder = __dirname;
+}
+
 const dbPath = path.resolve(dataFolder, 'leaderboard.db');
-const db = new sqlite3.Database(dbPath);
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) console.error("Database connection error:", err.message);
+    else console.log("Database connected at:", dbPath);
+});
 
 db.serialize(() => {
     db.run(`
@@ -54,7 +65,7 @@ app.get('/api/leaderboard', (req, res) => {
     `;
     db.all(query, [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", data: rows });
+        res.json({ status: "success", data: rows || [] });
     });
 });
 
@@ -65,6 +76,8 @@ app.post('/api/score', (req, res) => {
     }
 
     const { playerId, name, region, isWin, scoreChange } = req.body;
+    if (!playerId) return res.status(400).json({ status: "error", message: "Missing playerId" });
+
     const pureName = cleanName(name);
     const winIncrement = isWin ? 1 : 0;
     const finalRegion = region || 'Global';
@@ -82,7 +95,11 @@ app.post('/api/score', (req, res) => {
     `;
 
     db.run(sql, [playerId, pureName, finalRegion, winIncrement, scoreChange || 0, winIncrement, scoreChange || 0], function (err) {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
+        if (err) {
+            console.error("SQL Error:", err.message);
+            return res.status(500).json({ status: "error", message: err.message });
+        }
+        console.log(`[Score Uploaded] ${pureName} (${playerId}): ${scoreChange > 0 ? '+' : ''}${scoreChange}`);
         res.json({ status: "success" });
     });
 });
@@ -109,4 +126,6 @@ app.delete('/api/admin/player/:playerId', (req, res) => {
     });
 });
 
-app.listen(PORT);
+app.listen(PORT, () => {
+    console.log("Server listening on port", PORT);
+});
