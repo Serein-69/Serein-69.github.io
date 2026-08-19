@@ -91,8 +91,7 @@
         .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; }
         .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
         
-        /* 🌟 恢复经典青蓝色高亮分数 */
-        .score-badge { font-weight: 900; color: var(--accent-cyan); font-size: 0.95rem; }
+        .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
         
         .btn-del-mini { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
         .btn-del-mini:hover { background: #ef4444; color: #fff; }
@@ -142,7 +141,7 @@
         .mvp-avatar-glow div { width: 100%; height: 100%; border-radius: 50%; background: #0c0e14; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: var(--gold); }
         .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; }
         .mvp-tier-box { margin-bottom: 8px; }
-        .mvp-score { font-size: 1.8rem; font-weight: 900; color: var(--accent-cyan); }
+        .mvp-score { font-size: 1.8rem; font-weight: 900; color: #ffffff; }
         .mvp-score-sub { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
 
         footer { border-top: 1px solid var(--border-color); padding: 40px 0 20px; background: #07080a; }
@@ -287,7 +286,7 @@
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
-                th_rank: "#", th_player: "Player", th_tier: "Rank", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate", th_action: "Action",
+                th_rank: "#", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate", th_action: "Action",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
                 footer_desc: "The premier global competitive ranking platform for Crab Game players worldwide.",
                 pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
