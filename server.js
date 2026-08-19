@@ -12,7 +12,7 @@ const SERVER_SECRET_KEY = "CRAB_SECRET_KEY_888888";
 
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // 兼容表单上传
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
 function cleanName(name) {
@@ -39,7 +39,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// 初始化数据库表结构与预置数据
+// 初始化数据库、自动迁移与清洗旧假数据
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -56,25 +56,29 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 
-    // 仅在玩家不存在时插入预置数据，服务重启绝对不会覆盖在线打的分数
+    // 核心修复 1：清除所有非纯数字的遗留假 ID 数据（例如 legacy_xx）
+    db.run(`DELETE FROM players WHERE player_id NOT GLOB '[0-9]*'`);
+
+    // 核心修复 2：将 CSV 中真实的 SteamID 玩家导入，如果已存在 SteamID 则保留真实分数不覆盖
     db.run("BEGIN TRANSACTION;");
     const stmt = db.prepare(`
         INSERT INTO players (player_id, name, region, wins, matches, score)
         VALUES (?, ?, 'Global', ?, ?, ?)
-        ON CONFLICT(player_id) DO NOTHING
+        ON CONFLICT(player_id) DO UPDATE SET
+            name = CASE WHEN excluded.name != 'Unknown' THEN excluded.name ELSE players.name END
     `);
 
     if (Array.isArray(initialPlayers)) {
-        console.log(`[DB] 正在校验/同步 ${initialPlayers.length} 名天梯玩家...`);
         initialPlayers.forEach(p => {
-            if (p && p.id) {
-                stmt.run(String(p.id).trim(), cleanName(p.name), p.wins || 0, p.matches || 0, p.score || 1000);
+            if (p && p.id && /^\d+$/.test(String(p.id).trim())) {
+                const sid = String(p.id).trim();
+                stmt.run(sid, cleanName(p.name), p.wins || 0, p.matches || 0, p.score || 1000);
             }
         });
     }
     stmt.finalize();
     db.run("COMMIT;", () => {
-        console.log("[DB] 玩家数据初始化完成！");
+        console.log("[DB] Steam 数据库数据校准完成，旧假数据已全部清理！");
     });
 });
 
@@ -97,33 +101,25 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 核心优化：全兼容分数结算上传接口
+// 核心：基于 SteamID 精准变动分数
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
-        console.warn("[AUTH FAIL] 秘钥错误:", apiKey);
         return res.status(403).json({ status: "error", message: "Forbidden: Invalid API Key" });
     }
 
-    // 核心兼容：自动适配 steamId, playerId, SteamId, id 等各种命名
     const rawId = req.body.steamId || req.body.playerId || req.body.SteamId || req.body.id;
     if (!rawId) {
-        console.warn("[WARN] 缺少玩家 SteamID, 收到请求体:", req.body);
-        return res.status(400).json({ status: "error", message: "Missing steamId/playerId in request body" });
+        return res.status(400).json({ status: "error", message: "Missing SteamID" });
     }
 
     const targetSteamId = String(rawId).trim();
     const pureName = cleanName(req.body.name || req.body.playerName);
-    
-    // 兼容布尔值、字符串布尔值或数字
     const isWin = req.body.isWin === true || req.body.isWin === "true" || req.body.isWin === 1 || req.body.isWin === "1";
     const winIncrement = isWin ? 1 : 0;
-    
-    // 兼容分数加减
     const change = parseInt(req.body.scoreChange || req.body.change || req.body.score) || 0;
     const finalRegion = req.body.region || 'Global';
 
-    // 基于 SteamID 精确更新或新建
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
         VALUES (?, ?, ?, ?, 1, MAX(0, 1000 + ?), CURRENT_TIMESTAMP)
@@ -142,15 +138,11 @@ app.post('/api/score', (req, res) => {
             return res.status(500).json({ status: "error", message: err.message });
         }
 
-        // 查询更新后的最新分数并返回
-        db.get("SELECT score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
-            console.log(`[战绩同步成功] SteamID: ${targetSteamId} | 玩家: ${pureName} | 本场: ${isWin ? '胜利' : '失败'} (${change >= 0 ? '+' : ''}${change}) | 最新分数: ${row ? row.score : 'N/A'}`);
+        db.get("SELECT player_id, name, score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
+            console.log(`[同步成功] ID: ${targetSteamId} | 名字: ${row.name} | 本局: ${isWin ? '胜' : '负'} (${change >= 0 ? '+' : ''}${change}) | 当前分: ${row.score} | 总场次: ${row.matches}`);
             res.json({ 
                 status: "success", 
-                steamId: targetSteamId,
-                newScore: row ? row.score : null,
-                wins: row ? row.wins : null,
-                matches: row ? row.matches : null
+                data: row
             });
         });
     });
