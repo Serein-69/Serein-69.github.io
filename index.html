@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crab Game Ranking - Global & Regional Leaderboard</title>
+    <title>Crab Game Ranking - Global Leaderboard</title>
     <style>
         :root {
             --bg-main: #0a0b0e;
@@ -41,9 +41,9 @@
         .container { max-width: 1240px; margin: 0 auto; padding: 30px 20px; }
 
         .hero {
-            position: relative; border-radius: 16px; overflow: hidden;
+            border-radius: 16px; overflow: hidden;
             background: linear-gradient(180deg, rgba(147, 51, 234, 0.15) 0%, rgba(10, 11, 14, 0) 100%), #141622;
-            border: 1px solid var(--border-color); padding: 45px 40px; margin-bottom: 25px;
+            border: 1px solid var(--border-color); padding: 45px 40px; margin-bottom: 30px;
         }
         .hero-badge { color: var(--accent-pink); font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
         .hero-title { font-size: 2.6rem; font-weight: 900; line-height: 1.1; margin-bottom: 15px; }
@@ -59,23 +59,7 @@
         .stat-val { font-size: 1.3rem; font-weight: 800; }
         .stat-lbl { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
 
-        /* 地区/国家选择按钮 */
-        .region-bar {
-            display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
-        }
-        .region-btn {
-            background: #141622; color: var(--text-muted); border: 1px solid var(--border-color);
-            padding: 8px 18px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;
-            cursor: pointer; transition: all 0.2s;
-        }
-        .region-btn:hover { background: #1f2333; color: #fff; border-color: var(--accent-pink); }
-        .region-btn.active {
-            background: var(--primary-gradient); color: #fff; border-color: transparent;
-            box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
-        }
-
         .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; margin-bottom: 40px; }
-
         .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
         .card-title { font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
@@ -201,15 +185,6 @@
             </div>
         </section>
 
-        <!-- 国家/地区筛选 Tab 栏 -->
-        <div class="region-bar">
-            <button class="region-btn active" onclick="switchRegion('Global')">🌐 全球 (Global)</button>
-            <button class="region-btn" onclick="switchRegion('CN')">🇨🇳 中国 (China)</button>
-            <button class="region-btn" onclick="switchRegion('US')">🇺🇸 美国 (USA)</button>
-            <button class="region-btn" onclick="switchRegion('TR')">🇹🇷 土耳其 (Turkey)</button>
-            <button class="region-btn" onclick="switchRegion('RU')">🇷🇺 俄罗斯 (Russia)</button>
-        </div>
-
         <div class="main-grid">
             <div class="card">
                 <div class="card-header">
@@ -270,7 +245,6 @@
 
         let currentPage = 1;
         const pageSize = 10;
-        let currentRegion = 'Global';
 
         const I18N = {
             en: {
@@ -329,15 +303,6 @@
             return { name: "Bronze", class: "tier-bronze" };
         }
 
-        function switchRegion(region) {
-            currentRegion = region;
-            document.querySelectorAll('.region-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.innerText.includes(region) || (region === 'Global' && btn.innerText.includes('全球')));
-            });
-            currentPage = 1;
-            loadLeaderboard();
-        }
-
         function changeLanguage(lang) {
             currentLang = lang;
             localStorage.setItem('crab_ranking_lang', lang);
@@ -358,7 +323,7 @@
 
         async function loadLeaderboard() {
             try {
-                const res = await fetch(`${API_URL}/leaderboard?region=${currentRegion}`);
+                const res = await fetch(`${API_URL}/leaderboard`);
                 const result = await res.json();
                 if (result.status === "success") {
                     let players = result.data || [];
