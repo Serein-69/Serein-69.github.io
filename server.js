@@ -3,16 +3,11 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
-
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "MTM0MzYwNDIzOTMyMjMyMDk4OA.G_iQEV.7eFb9QxsfyNnjfPugN1ldiEk9jxB6mj3NOFhSI";
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "1343604239322320988";
-const ALLOWED_CHANNEL_ID = "1486669922594459658";
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
@@ -34,9 +29,8 @@ function cleanName(name) {
         .trim() || "Player";
 }
 
-// 仅在 Discord 用户输入 /bind 时调用 Steam API
 async function fetchSteamProfile(steamId) {
-    if (!STEAM_API_KEY || STEAM_API_KEY === "YOUR_STEAM_WEB_API_KEY") return null;
+    if (!STEAM_API_KEY) return null;
     try {
         const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${steamId}`;
         const res = await fetch(url);
@@ -76,7 +70,6 @@ db.serialize(() => {
             player_id TEXT UNIQUE,
             name TEXT NOT NULL,
             region TEXT DEFAULT 'GLOBAL',
-            discord_id TEXT,
             wins INTEGER DEFAULT 0,
             matches INTEGER DEFAULT 0,
             score INTEGER DEFAULT 1000,
@@ -92,7 +85,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表
+// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -115,39 +108,48 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 【唯一合法绑定入口】：玩家在 Discord 输入 /bind 绑定
-async function handleBindPlayer(steamId, discordId) {
-    const cleanSteamId = String(steamId || "").trim();
+// 【游戏内 Mod 专属绑定接口】
+app.post('/api/mod/bind', async (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+
+    const cleanSteamId = String(req.body.steamId || "").trim();
+    let manualRegion = (req.body.region || "").trim().toUpperCase();
+
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
-        return { success: false, message: "SteamID 格式不正确，必须为 17 位纯数字！" };
+        return res.status(400).json({ status: "error", message: "SteamID 无效" });
     }
 
-    const steamInfo = await fetchSteamProfile(cleanSteamId);
-    const country = steamInfo?.countryCode || 'GLOBAL';
-    const steamName = cleanName(steamInfo?.personaName || 'Player');
+    let finalCountry = manualRegion;
+    let playerName = cleanName(req.body.name);
 
-    return new Promise((resolve) => {
-        const sql = `
-            INSERT INTO players (player_id, name, region, discord_id, wins, matches, score, updated_at)
-            VALUES (?, ?, ?, ?, 0, 0, 1000, CURRENT_TIMESTAMP)
-            ON CONFLICT(player_id) DO UPDATE SET
-                name = CASE WHEN players.name = 'Player' OR players.name = 'Unknown' THEN excluded.name ELSE players.name END,
-                region = excluded.region,
-                discord_id = excluded.discord_id,
-                updated_at = CURRENT_TIMESTAMP
-        `;
+    if (!finalCountry || finalCountry === 'GLOBAL') {
+        const steamInfo = await fetchSteamProfile(cleanSteamId);
+        finalCountry = steamInfo?.countryCode || 'GLOBAL';
+        if (playerName === 'Player' && steamInfo?.personaName) {
+            playerName = cleanName(steamInfo.personaName);
+        }
+    }
 
-        db.run(sql, [cleanSteamId, steamName, country, discordId || null], function (err) {
-            if (err) return resolve({ success: false, message: err.message });
-            resolve({
-                success: true,
-                data: { steamId: cleanSteamId, name: steamName, region: country }
-            });
+    const sql = `
+        INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
+        VALUES (?, ?, ?, 0, 0, 1000, CURRENT_TIMESTAMP)
+        ON CONFLICT(player_id) DO UPDATE SET
+            region = ?,
+            updated_at = CURRENT_TIMESTAMP
+    `;
+
+    db.run(sql, [cleanSteamId, playerName, finalCountry, finalCountry], function (err) {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        res.json({
+            status: "success",
+            region: finalCountry,
+            message: `绑定成功！国籍设置为: ${finalCountry}`
         });
     });
-}
+});
 
-// 【游戏结算上报】：纯粹更新分数与名字，彻底删掉自动查国家，未绑定的永远是 GLOBAL
+// 处理战绩上传
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -174,7 +176,6 @@ async function processReport(body) {
     if (wins === null) wins = body.isWin ? 1 : 0;
     if (matches === null) matches = 1;
 
-    // 绝不擅自更改 region，只保留玩家通过 Discord 绑定的国籍
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
         VALUES (?, ?, 'GLOBAL', ?, ?, ?, CURRENT_TIMESTAMP)
@@ -214,75 +215,17 @@ app.post('/api/score', async (req, res) => {
     res.json({ status: "success" });
 });
 
-// Discord 机器人
-if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
-    const discordClient = new Client({ intents: [GatewayIntentBits.Guilds] });
+// 管理员清空接口
+app.post('/api/admin/clear-all-data', (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
 
-    const commands = [
-        new SlashCommandBuilder()
-            .setName('bind')
-            .setDescription('绑定你的 SteamID 并自动识别国籍挂上国旗')
-            .addStringOption(option =>
-                option.setName('steamid')
-                    .setDescription('你的 17 位 Steam64 ID (例如: 76561199115475689)')
-                    .setRequired(true)
-            )
-    ].map(command => command.toJSON());
-
-    const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
-
-    discordClient.once('ready', async () => {
-        console.log(`Discord 机器人已上线: ${discordClient.user.tag}`);
-        try {
-            await rest.put(Routes.applicationCommands(DISCORD_CLIENT_ID), { body: commands });
-            console.log(`Discord /bind 指令注册就绪！(限定在频道: ${ALLOWED_CHANNEL_ID})`);
-        } catch (error) {
-            console.error('指令注册失败:', error);
-        }
+    db.run("DELETE FROM players", (err) => {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        res.json({ status: "success", message: "数据库已彻底清空！" });
     });
-
-    discordClient.on('interactionCreate', async (interaction) => {
-        if (!interaction.isChatInputCommand()) return;
-
-        if (interaction.commandName === 'bind') {
-            if (ALLOWED_CHANNEL_ID && interaction.channelId !== ALLOWED_CHANNEL_ID) {
-                return interaction.reply({
-                    content: `请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
-                    ephemeral: true
-                });
-            }
-
-            const steamId = interaction.options.getString('steamid').trim();
-            await interaction.deferReply({ ephemeral: true });
-
-            const result = await handleBindPlayer(steamId, interaction.user.id);
-
-            if (result.success) {
-                const { name, region } = result.data;
-                const embed = new EmbedBuilder()
-                    .setColor(0x9333ea)
-                    .setTitle('账号绑定成功！')
-                    .setDescription('你的 Steam 账号已成功与全球天梯排行榜同步。')
-                    .addFields(
-                        { name: 'Steam 昵称', value: `\`${name}\``, inline: true },
-                        { name: '识别国家/地区', value: `\`${region}\``, inline: true },
-                        { name: 'SteamID', value: `\`${steamId}\``, inline: false }
-                    )
-                    .setFooter({ text: '全球天梯排行榜已自动更新对应国旗' })
-                    .setTimestamp();
-
-                await interaction.editReply({ embeds: [embed] });
-            } else {
-                await interaction.editReply({ content: `**绑定失败**: ${result.message}` });
-            }
-        }
-    });
-
-    discordClient.login(DISCORD_BOT_TOKEN).catch(err => {
-        console.error("Discord 机器人登录失败:", err.message);
-    });
-}
+});
 
 app.listen(PORT, () => {
-    console.log(`[Server] 服务器与机器人已在端口 ${PORT} 启动！`);
+    console.log(`[Server] 排行榜服务器已在端口 ${PORT} 启动！`);
 });
