@@ -7,7 +7,7 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
-// 你的 Steam Web API Key (可在 https://steamcommunity.com/dev/apikey 获取)
+// 你的 Steam Web API Key
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "YOUR_STEAM_WEB_API_KEY";
 
 app.use(cors());
@@ -16,6 +16,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.text({ limit: '10mb' }));
 app.use(express.static(__dirname));
 
+// 名字清洗函数
 function cleanName(name) {
     if (!name) return "Unknown";
     return String(name)
@@ -30,10 +31,10 @@ function cleanName(name) {
         .trim() || "Unknown";
 }
 
-// 辅助函数：根据 SteamID 请求 Steam API 查询玩家国家和昵称
+// 辅助函数：通过 SteamID 获取玩家公开的 Steam 个人资料（昵称与国籍）
 async function fetchSteamProfile(steamId) {
     if (!STEAM_API_KEY || STEAM_API_KEY === "YOUR_STEAM_WEB_API_KEY") {
-        console.warn("[Steam API] 未配置 STEAM_API_KEY，跳过在线查询。");
+        console.warn("[Steam API] 未配置 STEAM_API_KEY 环境变量，跳过在线查询。");
         return null;
     }
     try {
@@ -53,6 +54,7 @@ async function fetchSteamProfile(steamId) {
     }
 }
 
+// 数据库持久化路径判断（兼容 Railway Volume 挂载）
 let dataFolder = __dirname;
 try {
     if (fs.existsSync('/data')) {
@@ -74,7 +76,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 // 初始化数据库表
 db.serialize(() => {
-    // 玩家表
+    // 玩家主表
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,9 +102,9 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 1. 排行榜列表查询接口
+// 1. 排行榜列表查询接口（已修复：默认返回全服所有玩家，不再错误过滤）
 app.get('/api/leaderboard', (req, res) => {
-    const regionFilter = req.query.region || 'Global';
+    const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
         SELECT player_id, name, region, wins, matches, score,
                ROUND((CAST(wins AS FLOAT) / CAST(CASE WHEN matches = 0 THEN 1 ELSE matches END AS FLOAT)) * 100, 1) as winRate
@@ -110,20 +112,21 @@ app.get('/api/leaderboard', (req, res) => {
     `;
     const params = [];
 
-    if (regionFilter !== 'Global' && regionFilter !== 'ALL') {
+    // 仅在明确传入特定地区（如 ?region=CN）时才过滤
+    if (regionFilter && regionFilter !== 'GLOBAL' && regionFilter !== 'ALL') {
         query += ` WHERE region = ? `;
-        params.push(regionFilter.toUpperCase());
+        params.push(regionFilter);
     }
 
     query += ` ORDER BY score DESC, wins DESC LIMIT 50000 `;
 
     db.all(query, params, (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", region: regionFilter, data: rows || [] });
+        res.json({ status: "success", data: rows || [] });
     });
 });
 
-// 2. Discord Bot 专属绑定接口：自动通过 Steam API 获取国家与昵称
+// 2. Discord Bot 专属绑定接口：自动调用 Steam API 检索国籍与昵称并写入
 app.post('/api/bot/bind-steam', async (req, res) => {
     const apiKey = req.headers['x-api-key'];
     if (apiKey !== SERVER_SECRET_KEY) {
@@ -134,10 +137,10 @@ app.post('/api/bot/bind-steam', async (req, res) => {
     const cleanSteamId = String(steamId || "").trim();
 
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
-        return res.status(400).json({ status: "error", message: "无效的 64 位 SteamID！" });
+        return res.status(400).json({ status: "error", message: "无效的 17 位 Steam64 ID！" });
     }
 
-    // 自动请求 Steam 官方 API 查询玩家个人资料中的国家和名字
+    // 调用 Steam Web API 查玩家信息
     const steamInfo = await fetchSteamProfile(cleanSteamId);
     const country = steamInfo?.countryCode || 'GLOBAL';
     const steamName = cleanName(steamInfo?.personaName || 'Player');
@@ -167,7 +170,7 @@ app.post('/api/bot/bind-steam', async (req, res) => {
     });
 });
 
-// 3. 游戏内比赛结算上报接口
+// 3. 游戏内比赛结算自动上报接口
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
@@ -199,7 +202,7 @@ app.post('/api/score', (req, res) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
 
         db.get("SELECT player_id, name, region, score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
-            console.log(`[战绩同步] ID: ${targetSteamId} | 玩家: ${row?.name} | 地区: ${row?.region} | 分数: ${row?.score}`);
+            console.log(`[战绩全自动同步] ID: ${targetSteamId} | 玩家: ${row?.name} | 分数: ${row?.score}`);
             res.json({ status: "success", data: row });
         });
     });
