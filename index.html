@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crab Game Ranking - Global Leaderboard</title>
+    <title>Crab Game Ranking - Global & Regional Leaderboard</title>
     <style>
         :root {
             --bg-main: #0a0b0e;
@@ -29,9 +29,7 @@
             backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-color);
             position: sticky; top: 0; z-index: 100;
         }
-        .nav-left { display: flex; align-items: center; gap: 35px; }
         .logo { font-size: 1.4rem; font-weight: 900; letter-spacing: 1.5px; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .nav-right { display: flex; align-items: center; gap: 15px; }
 
         .lang-select {
             background: #181b26; color: #fff; border: 1px solid var(--border-color);
@@ -45,7 +43,7 @@
         .hero {
             position: relative; border-radius: 16px; overflow: hidden;
             background: linear-gradient(180deg, rgba(147, 51, 234, 0.15) 0%, rgba(10, 11, 14, 0) 100%), #141622;
-            border: 1px solid var(--border-color); padding: 45px 40px; margin-bottom: 30px;
+            border: 1px solid var(--border-color); padding: 45px 40px; margin-bottom: 25px;
         }
         .hero-badge { color: var(--accent-pink); font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
         .hero-title { font-size: 2.6rem; font-weight: 900; line-height: 1.1; margin-bottom: 15px; }
@@ -60,6 +58,21 @@
         .stat-icon { font-size: 1.8rem; background: #1c1f2e; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
         .stat-val { font-size: 1.3rem; font-weight: 800; }
         .stat-lbl { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
+
+        /* 地区/国家选择按钮 */
+        .region-bar {
+            display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
+        }
+        .region-btn {
+            background: #141622; color: var(--text-muted); border: 1px solid var(--border-color);
+            padding: 8px 18px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .region-btn:hover { background: #1f2333; color: #fff; border-color: var(--accent-pink); }
+        .region-btn.active {
+            background: var(--primary-gradient); color: #fff; border-color: transparent;
+            box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+        }
 
         .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; margin-bottom: 40px; }
 
@@ -83,7 +96,8 @@
 
         .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; }
         .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
-        
+        .flag-tag { font-size: 1.1rem; display: inline-flex; align-items: center; }
+
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
 
         .tier-tag {
@@ -110,18 +124,10 @@
             cursor: pointer; transition: all 0.2s; outline: none;
         }
         .page-btn:hover:not(:disabled) { background: #1f2333; color: #fff; border-color: var(--accent-pink); }
-        .page-btn.active {
-            background: var(--primary-gradient); color: #fff; border-color: transparent;
-        }
+        .page-btn.active { background: var(--primary-gradient); color: #fff; border-color: transparent; }
         .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-        .jump-input {
-            width: 55px; background: #0c0e14; border: 1px solid var(--border-color);
-            color: #fff; text-align: center; border-radius: 6px; padding: 5px; font-size: 0.8rem; outline: none;
-        }
-
         .sidebar { display: flex; flex-direction: column; gap: 20px; }
-
         .mvp-card {
             background: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.25), transparent 70%), var(--bg-card);
             border: 1px solid var(--border-color); border-radius: 14px; padding: 25px; text-align: center; position: relative;
@@ -136,35 +142,26 @@
         .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; }
         .mvp-tier-box { margin-bottom: 8px; }
         .mvp-score { font-size: 1.8rem; font-weight: 900; color: #ffffff; }
-        .mvp-score-sub { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
 
         footer { border-top: 1px solid var(--border-color); padding: 40px 0 20px; background: #07080a; }
-        .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 30px; max-width: 1240px; margin: 0 auto; padding: 0 20px 20px; }
-        .footer-logo { font-size: 1.2rem; font-weight: 900; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
-        .footer-desc { font-size: 0.85rem; color: var(--text-muted); max-width: 320px; }
-        .copyright { text-align: center; color: #555; font-size: 0.75rem; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 20px; }
+        .copyright { text-align: center; color: #555; font-size: 0.75rem; }
 
         @media (max-width: 900px) {
             .main-grid { grid-template-columns: 1fr; }
             .stats-bar { grid-template-columns: repeat(2, 1fr); }
-            .hero-title { font-size: 2rem; }
         }
     </style>
 </head>
 <body>
 
     <nav class="navbar">
-        <div class="nav-left">
-            <div class="logo">CRAB GAME RANKING</div>
-        </div>
-        <div class="nav-right">
-            <select class="lang-select" id="languageSelector" onchange="changeLanguage(this.value)">
-                <option value="en">English (EN)</option>
-                <option value="zh">简体中文 (ZH)</option>
-                <option value="ru">Русский (RU)</option>
-                <option value="tr">Türkçe (TR)</option>
-            </select>
-        </div>
+        <div class="logo">CRAB GAME RANKING</div>
+        <select class="lang-select" id="languageSelector" onchange="changeLanguage(this.value)">
+            <option value="en">English (EN)</option>
+            <option value="zh">简体中文 (ZH)</option>
+            <option value="ru">Русский (RU)</option>
+            <option value="tr">Türkçe (TR)</option>
+        </select>
     </nav>
 
     <div class="container">
@@ -204,7 +201,16 @@
             </div>
         </section>
 
-        <div class="main-grid" id="leaderboardSection">
+        <!-- 国家/地区筛选 Tab 栏 -->
+        <div class="region-bar">
+            <button class="region-btn active" onclick="switchRegion('Global')">🌐 全球 (Global)</button>
+            <button class="region-btn" onclick="switchRegion('CN')">🇨🇳 中国 (China)</button>
+            <button class="region-btn" onclick="switchRegion('US')">🇺🇸 美国 (USA)</button>
+            <button class="region-btn" onclick="switchRegion('TR')">🇹🇷 土耳其 (Turkey)</button>
+            <button class="region-btn" onclick="switchRegion('RU')">🇷🇺 俄罗斯 (Russia)</button>
+        </div>
+
+        <div class="main-grid">
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
@@ -220,6 +226,7 @@
                     <thead>
                         <tr>
                             <th data-i18n="th_rank">#</th>
+                            <th data-i18n="th_region">Region</th>
                             <th data-i18n="th_player">Player</th>
                             <th data-i18n="th_tier">Tier Rank</th>
                             <th data-i18n="th_mmr">MMR Score</th>
@@ -227,15 +234,12 @@
                             <th data-i18n="th_winrate">Win Rate</th>
                         </tr>
                     </thead>
-                    <tbody id="leaderboardBody">
-                        <tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:30px;">Loading live ladder data...</td></tr>
-                    </tbody>
+                    <tbody id="leaderboardBody"></tbody>
                 </table>
 
                 <div class="pagination-container" id="paginationContainer">
                     <div class="pagination-info" id="paginationInfo">Showing ...</div>
-                    <div class="pagination-controls" id="paginationControls">
-                    </div>
+                    <div class="pagination-controls" id="paginationControls"></div>
                 </div>
             </div>
 
@@ -248,19 +252,13 @@
                     <div class="mvp-name" id="mvpName">Loading...</div>
                     <div class="mvp-tier-box" id="mvpTierBox"></div>
                     <div class="mvp-score" id="mvpScore">...</div>
-                    <div class="mvp-score-sub" data-i18n="mvp_rating">Global Rating</div>
+                    <div class="mvp-score-sub" data-i18n="mvp_rating">Rating</div>
                 </div>
             </div>
         </div>
     </div>
 
     <footer>
-        <div class="footer-grid">
-            <div>
-                <div class="footer-logo">CRAB GAME RANKING</div>
-                <p class="footer-desc" data-i18n="footer_desc">The premier global competitive ranking platform for Crab Game players worldwide.</p>
-            </div>
-        </div>
         <div class="copyright">
             © 2024-2026 Crab Game Ranking System. All rights reserved.
         </div>
@@ -272,15 +270,15 @@
 
         let currentPage = 1;
         const pageSize = 10;
+        let currentRegion = 'Global';
 
         const I18N = {
             en: {
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
-                th_rank: "#", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate",
+                th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
-                footer_desc: "The premier global competitive ranking platform for Crab Game players worldwide.",
                 pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
                 pg_search_result: "Found", pg_total: "total"
             },
@@ -288,63 +286,56 @@
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
-                th_rank: "排名", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率",
+                th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率",
                 mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
-                footer_desc: "专为全球 Crab Game 竞技玩家打造的权威天梯排位与数据分析平台。",
                 pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
                 pg_search_result: "找到", pg_total: "全服共"
-            },
-            ru: {
-                hero_badge: "Глобальный рейтинг", hero_title_1: "CRAB GAME", hero_title_2: "МИРОВОЙ РЕЙТИНГ",
-                stat_players: "Игроков", stat_matches: "Матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация",
-                table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
-                th_rank: "#", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR Рейтинг", th_wl: "В - П", th_winrate: "Винрейт",
-                mvp_title: "👑 Лидер рейтинга", mvp_rating: "Общий рейтинг",
-                footer_desc: "Официальная рейтинговая платформа для игроков Crab Game по всему миру.",
-                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
-                pg_search_result: "Найдено", pg_total: "всего"
-            },
-            tr: {
-                hero_badge: "Dünyanın En İyi", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
-                stat_players: "Kayıtlı Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek Puan", stat_status: "Aktif",
-                table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
-                th_rank: "#", th_player: "Oyuncu", th_tier: "Kademe", th_mmr: "MMR Puanı", th_wl: "G - M", th_winrate: "Kazanma Oranı",
-                mvp_title: "👑 Ayın En İyi Oyuncusu", mvp_rating: "Genel Puan",
-                footer_desc: "Crab Game oyuncuları için küresel rekabetçi sıralama ve veri platformu.",
-                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
-                pg_search_result: "Bulunan", pg_total: "toplam"
             }
         };
 
-        let currentLang = localStorage.getItem('crab_ranking_lang') || 'en';
+        let currentLang = localStorage.getItem('crab_ranking_lang') || 'zh';
+
+        function getCountryFlag(code) {
+            if (!code || code === 'Global') return '🌐';
+            const flags = {
+                'CN': '🇨🇳', 'US': '🇺🇸', 'TR': '🇹🇷', 'RU': '🇷🇺',
+                'GB': '🇬🇧', 'DE': '🇩🇪', 'FR': '🇫🇷', 'JP': '🇯🇵',
+                'KR': '🇰🇷', 'CA': '🇨🇦', 'BR': '🇧🇷', 'AU': '🇦🇺'
+            };
+            return flags[code.toUpperCase()] || '🌐';
+        }
 
         function getTierInfo(score) {
             if (score >= 1400) return { name: "GM IV", class: "tier-gm" };
             if (score >= 1390) return { name: "GM III", class: "tier-gm" };
             if (score >= 1375) return { name: "GM II", class: "tier-gm" };
             if (score >= 1350) return { name: "GM I", class: "tier-gm" };
-
             if (score >= 1330) return { name: "Master IV", class: "tier-master" };
             if (score >= 1320) return { name: "Master III", class: "tier-master" };
             if (score >= 1310) return { name: "Master II", class: "tier-master" };
             if (score >= 1300) return { name: "Master I", class: "tier-master" };
-
             if (score >= 1260) return { name: "Diamond II", class: "tier-diamond" };
             if (score >= 1245) return { name: "Diamond I", class: "tier-diamond" };
-
             if (score >= 1230) return { name: "Platinum IV", class: "tier-platinum" };
             if (score >= 1210) return { name: "Platinum III", class: "tier-platinum" };
             if (score >= 1190) return { name: "Platinum II", class: "tier-platinum" };
             if (score >= 1170) return { name: "Platinum I", class: "tier-platinum" };
-
             if (score >= 1150) return { name: "Gold IV", class: "tier-gold" };
             if (score >= 1125) return { name: "Gold III", class: "tier-gold" };
             if (score >= 1110) return { name: "Gold II", class: "tier-gold" };
             if (score >= 1100) return { name: "Gold I", class: "tier-gold" };
-
             if (score >= 1050) return { name: "Silver II", class: "tier-silver" };
             if (score >= 1000) return { name: "Silver I", class: "tier-silver" };
             return { name: "Bronze", class: "tier-bronze" };
+        }
+
+        function switchRegion(region) {
+            currentRegion = region;
+            document.querySelectorAll('.region-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText.includes(region) || (region === 'Global' && btn.innerText.includes('全球')));
+            });
+            currentPage = 1;
+            loadLeaderboard();
         }
 
         function changeLanguage(lang) {
@@ -352,7 +343,7 @@
             localStorage.setItem('crab_ranking_lang', lang);
             document.getElementById('languageSelector').value = lang;
 
-            const t = I18N[lang];
+            const t = I18N[lang] || I18N.zh;
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
                 if (t[key]) el.innerText = t[key];
@@ -367,22 +358,19 @@
 
         async function loadLeaderboard() {
             try {
-                const res = await fetch(`${API_URL}/leaderboard`);
+                const res = await fetch(`${API_URL}/leaderboard?region=${currentRegion}`);
                 const result = await res.json();
                 if (result.status === "success") {
                     let players = result.data || [];
                     players.forEach((p, index) => {
                         p.originalRank = index + 1;
                     });
-
                     cachedPlayers = players;
                     localStorage.setItem('crab_cached_leaderboard', JSON.stringify(cachedPlayers));
                     updateHeroStats();
                     renderUI(document.getElementById('searchInput').value);
                 }
-            } catch (err) {
-                console.error("Fetch Error:", err);
-            }
+            } catch (err) {}
         }
 
         function updateHeroStats() {
@@ -392,10 +380,9 @@
 
             if (cachedPlayers.length > 0) {
                 document.getElementById('statTopMMR').innerText = cachedPlayers[0].score.toLocaleString();
-
                 const top1 = cachedPlayers[0];
                 const top1Tier = getTierInfo(top1.score);
-                document.getElementById('mvpName').innerText = top1.name;
+                document.getElementById('mvpName').innerText = `${getCountryFlag(top1.region)} ${top1.name}`;
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
                 document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
@@ -405,13 +392,12 @@
         function renderUI(query = "") {
             const tbody = document.getElementById('leaderboardBody');
             const trimmedQuery = query.trim().toLowerCase();
-            
             const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(trimmedQuery));
 
             tbody.innerHTML = "";
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">No players found</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666; padding:30px;">未找到玩家</td></tr>`;
                 renderPagination(0, 0, trimmedQuery);
                 return;
             }
@@ -420,8 +406,7 @@
             if (currentPage > totalPages) currentPage = totalPages;
 
             const startIndex = (currentPage - 1) * pageSize;
-            const endIndex = startIndex + pageSize;
-            const pageList = list.slice(startIndex, endIndex);
+            const pageList = list.slice(startIndex, startIndex + pageSize);
 
             pageList.forEach((p) => {
                 const rank = p.originalRank;
@@ -431,10 +416,12 @@
                 const tier = getTierInfo(p.score);
                 const losses = Math.max(0, (p.matches || 0) - (p.wins || 0));
                 const winRateFormatted = (parseFloat(p.winRate) || 0).toFixed(1);
+                const flag = getCountryFlag(p.region);
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="rank-num ${rankClass}">${rankIcon}</td>
+                    <td><span class="flag-tag">${flag}</span></td>
                     <td>
                         <div class="player-cell">
                             <div class="player-avatar">${p.name.substring(0, 1).toUpperCase()}</div>
@@ -456,18 +443,17 @@
             const controls = document.getElementById('paginationControls');
             const info = document.getElementById('paginationInfo');
             const totalPages = Math.ceil(matchedCount / pageSize) || 1;
-            const t = I18N[currentLang];
 
             if (matchedCount === 0) {
-                info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
+                info.innerText = `显示 0 / 0 名玩家`;
             } else if (query) {
                 const start = (currentPage - 1) * pageSize + 1;
                 const end = Math.min(currentPage * pageSize, matchedCount);
-                info.innerText = `${t.pg_search_result} ${matchedCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${totalCount.toLocaleString()})`;
+                info.innerText = `找到 ${matchedCount} (显示 ${start}-${end}, 榜单共 ${totalCount.toLocaleString()})`;
             } else {
                 const start = (currentPage - 1) * pageSize + 1;
                 const end = Math.min(currentPage * pageSize, totalCount);
-                info.innerText = `${t.pg_showing} ${start}-${end} ${t.pg_of} ${totalCount.toLocaleString()} ${t.pg_players}`;
+                info.innerText = `显示 ${start}-${end} / ${totalCount.toLocaleString()} 名玩家`;
             }
 
             controls.innerHTML = "";
@@ -475,14 +461,9 @@
 
             const prevBtn = document.createElement('button');
             prevBtn.className = 'page-btn';
-            prevBtn.innerText = t.pg_prev;
+            prevBtn.innerText = '上一页';
             prevBtn.disabled = currentPage === 1;
-            prevBtn.onclick = () => {
-                if (currentPage > 1) {
-                    currentPage--;
-                    renderUI(document.getElementById('searchInput').value);
-                }
-            };
+            prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; renderUI(document.getElementById('searchInput').value); } };
             controls.appendChild(prevBtn);
 
             for (let i = 1; i <= totalPages; i++) {
@@ -491,52 +472,23 @@
                         const dots = document.createElement('span');
                         dots.innerText = "...";
                         dots.style.color = "#666";
-                        dots.style.padding = "0 3px";
                         controls.appendChild(dots);
                     }
                     continue;
                 }
-
                 const numBtn = document.createElement('button');
                 numBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
                 numBtn.innerText = i;
-                numBtn.onclick = () => {
-                    currentPage = i;
-                    renderUI(document.getElementById('searchInput').value);
-                };
+                numBtn.onclick = () => { currentPage = i; renderUI(document.getElementById('searchInput').value); };
                 controls.appendChild(numBtn);
             }
 
             const nextBtn = document.createElement('button');
             nextBtn.className = 'page-btn';
-            nextBtn.innerText = t.pg_next;
+            nextBtn.innerText = '下一页';
             nextBtn.disabled = currentPage === totalPages;
-            nextBtn.onclick = () => {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    renderUI(document.getElementById('searchInput').value);
-                }
-            };
+            nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; renderUI(document.getElementById('searchInput').value); } };
             controls.appendChild(nextBtn);
-
-            if (totalPages > 10) {
-                const jumpInput = document.createElement('input');
-                jumpInput.type = 'number';
-                jumpInput.className = 'jump-input';
-                jumpInput.min = 1;
-                jumpInput.max = totalPages;
-                jumpInput.placeholder = 'Go';
-                jumpInput.onkeydown = (e) => {
-                    if (e.key === 'Enter') {
-                        let val = parseInt(jumpInput.value);
-                        if (val >= 1 && val <= totalPages) {
-                            currentPage = val;
-                            renderUI(document.getElementById('searchInput').value);
-                        }
-                    }
-                };
-                controls.appendChild(jumpInput);
-            }
         }
 
         document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -545,15 +497,6 @@
         });
 
         changeLanguage(currentLang);
-        
-        if (cachedPlayers.length > 0) {
-            cachedPlayers.forEach((p, index) => {
-                if (!p.originalRank) p.originalRank = index + 1;
-            });
-            updateHeroStats();
-            renderUI();
-        }
-        
         loadLeaderboard();
         setInterval(loadLeaderboard, 5000);
     </script>
