@@ -8,10 +8,11 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuild
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
-const STEAM_API_KEY = process.env.STEAM_API_KEY || "YOUR_STEAM_WEB_API_KEY";
+const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "";
+// Discord 配置
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "MTM0MzYwNDIzOTMyMjMyMDk4OA.G_iQEV.7eFb9QxsfyNnjfPugN1ldiEk9jxB6mj3NOFhSI";
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "1343604239322320988";
 const ALLOWED_CHANNEL_ID = "1486669922594459658";
 
 app.use(cors());
@@ -65,11 +66,14 @@ const db = new sqlite3.Database(dbPath, (err) => {
     else {
         db.run("PRAGMA journal_mode = WAL;");
         db.run("PRAGMA synchronous = NORMAL;");
-        db.run("PRAGMA cache_size = -64000;");
     }
 });
 
+// 初始化数据库表（执行清空并重建全新空白表）
 db.serialize(() => {
+    // 【核心执行清空】：清空原有所有 10865+ 名玩家历史数据
+    db.run(`DROP TABLE IF EXISTS players;`);
+
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,14 +89,14 @@ db.serialize(() => {
     `);
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库服务就绪！");
+    console.log("[DB] 数据库已全部清空，全新排位系统就绪！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表接口
+// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -115,6 +119,7 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
+// Discord 绑定核心逻辑
 async function handleBindPlayer(steamId, discordId) {
     const cleanSteamId = String(steamId || "").trim();
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
@@ -145,18 +150,7 @@ async function handleBindPlayer(steamId, discordId) {
     });
 }
 
-app.post('/api/bot/bind-steam', async (req, res) => {
-    const apiKey = req.headers['x-api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    const result = await handleBindPlayer(req.body.steamId, req.body.discordId);
-    if (result.success) {
-        res.json({ status: "success", data: result.data });
-    } else {
-        res.status(400).json({ status: "error", message: result.message });
-    }
-});
-
+// 处理战绩上传
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -209,52 +203,10 @@ async function processReport(body) {
     });
 }
 
+// 接收比赛结算 POST
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    if (typeof req.body === 'string' && req.body.includes('|')) {
-        const lines = req.body.trim().split('\n');
-        db.serialize(() => {
-            db.run("BEGIN TRANSACTION;");
-            const stmt = db.prepare(`
-                INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-                VALUES (?, ?, 'GLOBAL', ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(player_id) DO UPDATE SET
-                    name = CASE WHEN players.name = 'Player' OR players.name = 'Unknown' THEN excluded.name ELSE players.name END,
-                    wins = MAX(players.wins, excluded.wins),
-                    matches = MAX(players.matches, excluded.matches),
-                    score = MAX(players.score, excluded.score),
-                    updated_at = CURRENT_TIMESTAMP
-            `);
-
-            for (let line of lines) {
-                line = line.trim();
-                if (!line) continue;
-                const parts = line.split('|');
-                const steamId = parts[0];
-                if (!steamId || !/^\d+$/.test(steamId)) continue;
-
-                let name = "Player", score = 1000, wins = 0, matches = 0;
-                for (let i = 1; i < parts.length; i++) {
-                    const [k, ...v] = parts[i].split(':');
-                    const val = v.join(':');
-                    if (k === 'Username') name = cleanName(val);
-                    if (k === 'CurrentElo') score = parseInt(val) || 1000;
-                    if (k === 'Wins') wins = parseInt(val) || 0;
-                    if (k === 'TotalMatches') matches = parseInt(val) || 0;
-                    if (k === 'Losses' && matches === 0) matches = wins + (parseInt(val) || 0);
-                }
-                if (matches === 0) matches = Math.max(1, wins);
-                stmt.run(steamId, name, wins, matches, score);
-            }
-            stmt.finalize();
-            db.run("COMMIT;", () => {
-                res.json({ status: "success", message: "本地历史全部同步成功" });
-            });
-        });
-        return;
-    }
 
     if (Array.isArray(req.body)) {
         for (const item of req.body) await processReport(item);
@@ -265,7 +217,19 @@ app.post('/api/score', async (req, res) => {
     res.json({ status: "success" });
 });
 
-// =================【 DISCORD 机器人：代码级锁定频道 】=================
+// 手动清空数据库的安全 API（方便以后你想随时清空）
+app.post('/api/admin/clear-all-data', (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+
+    db.run("DELETE FROM players", (err) => {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        console.log("[DB] 管理员已清空所有玩家数据！");
+        res.json({ status: "success", message: "数据库已彻底清空！" });
+    });
+});
+
+// =================【 DISCORD 机器人集成 】=================
 if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
     const discordClient = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -296,10 +260,9 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
         if (!interaction.isChatInputCommand()) return;
 
         if (interaction.commandName === 'bind') {
-            // 【核心拦截】：如果不是在指定频道发送，直接打回
             if (ALLOWED_CHANNEL_ID && interaction.channelId !== ALLOWED_CHANNEL_ID) {
                 return interaction.reply({
-                    content: `请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
+                    content: `⚠️ 请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
                     ephemeral: true
                 });
             }
@@ -327,16 +290,16 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
                     .setTitle('账号绑定成功！')
                     .setDescription('你的 Steam 账号已成功与全球天梯排行榜同步。')
                     .addFields(
-                        { name: ' Steam 昵称', value: `\`${name}\``, inline: true },
-                        { name: ' 识别国家/地区', value: `${flagEmoji} \`${region}\``, inline: true },
-                        { name: ' SteamID', value: `\`${steamId}\``, inline: false }
+                        { name: 'Steam 昵称', value: `\`${name}\``, inline: true },
+                        { name: '识别国家/地区', value: `${flagEmoji} \`${region}\``, inline: true },
+                        { name: 'SteamID', value: `\`${steamId}\``, inline: false }
                     )
                     .setFooter({ text: '全球天梯排行榜已自动更新对应国旗' })
                     .setTimestamp();
 
                 await interaction.editReply({ embeds: [embed] });
             } else {
-                await interaction.editReply({ content: `**绑定失败**: ${result.message}` });
+                await interaction.editReply({ content: `❌ **绑定失败**: ${result.message}` });
             }
         }
     });
