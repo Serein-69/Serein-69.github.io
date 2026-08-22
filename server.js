@@ -29,11 +29,9 @@ function cleanName(name) {
         .trim() || "Player";
 }
 
-// 自动向 Steam 请求国家与名字
+// 自动向 Steam API 抓取公开的国籍和 Steam 真实名字
 async function fetchSteamProfile(steamId) {
-    if (!STEAM_API_KEY || STEAM_API_KEY === "YOUR_STEAM_WEB_API_KEY") {
-        return null;
-    }
+    if (!STEAM_API_KEY || STEAM_API_KEY === "YOUR_STEAM_WEB_API_KEY") return null;
     try {
         const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${steamId}`;
         const res = await fetch(url);
@@ -66,7 +64,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// 初始化表结构
+// 初始化数据库表
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -83,14 +81,14 @@ db.serialize(() => {
     `);
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已就绪，等待游戏自动上报战绩！");
+    console.log("[DB] 数据库服务就绪，完全适配 C# 插件！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 1. 排行榜查询接口
+// 1. 排行榜列表接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -145,88 +143,86 @@ app.post('/api/bot/bind-steam', async (req, res) => {
     });
 });
 
-// 3. 【核心】全自动战绩结算接口（支持单个玩家、整局多个玩家、支持纯文本/JSON自动解析）
-async function savePlayerRecord(p) {
-    const targetSteamId = String(p.steamId || p.playerId || p.id || "").trim();
-    if (!targetSteamId || !/^\d+$/.test(targetSteamId)) return;
+// 3. 【核心修复】深度解析 C# 插件传来的整行 rawLine 与战绩
+async function processReport(body) {
+    let steamId = String(body.steamId || body.playerId || "").trim();
+    let name = cleanName(body.name || body.playerName);
+    let score = null;
+    let wins = null;
+    let matches = null;
 
-    let pureName = cleanName(p.name || p.playerName || p.Username);
-    let region = p.region || 'GLOBAL';
+    // 解析插件传来的 rawLine 管道符文本（例如: 76561199001480321|Username:site|CurrentElo:1025|TotalMatches:1|Wins:1）
+    if (body.rawLine && typeof body.rawLine === 'string') {
+        const parts = body.rawLine.split('|');
+        if (parts.length > 0 && /^\d+$/.test(parts[0])) {
+            steamId = parts[0];
+        }
+        for (let i = 1; i < parts.length; i++) {
+            const [k, ...v] = parts[i].split(':');
+            const val = v.join(':');
+            if (k === 'Username' && (!name || name === 'Player')) name = cleanName(val);
+            if (k === 'CurrentElo') score = parseInt(val);
+            if (k === 'Wins') wins = parseInt(val);
+            if (k === 'TotalMatches') matches = parseInt(val);
+        }
+    }
 
-    // 如果是新玩家，自动去 Steam 查一次国籍和真实名字
-    const steamInfo = await fetchSteamProfile(targetSteamId);
+    if (!steamId || !/^\d+$/.test(steamId)) return;
+
+    // 自动查询 Steam 国籍
+    let region = 'GLOBAL';
+    const steamInfo = await fetchSteamProfile(steamId);
     if (steamInfo) {
-        if (region === 'GLOBAL' && steamInfo.countryCode) region = steamInfo.countryCode;
-        if (pureName === 'Player' && steamInfo.personaName) pureName = cleanName(steamInfo.personaName);
+        if (steamInfo.countryCode) region = steamInfo.countryCode;
+        if ((!name || name === 'Player' || name === 'Unknown') && steamInfo.personaName) {
+            name = cleanName(steamInfo.personaName);
+        }
     }
 
-    const isWin = p.isWin === true || p.isWin === "true" || p.isWin === 1 || p.isWin === "1" || parseInt(p.Wins) > 0;
-    const winIncrement = isWin ? 1 : 0;
-
-    // 如果游戏传了明确的最终分数（CurrentElo），直接采用；否则按变动增减分
-    if (p.CurrentElo !== undefined || p.currentScore !== undefined || p.score !== undefined) {
-        const exactScore = parseInt(p.CurrentElo || p.currentScore || p.score) || 1000;
-        const totalMatches = parseInt(p.TotalMatches || p.matches) || 1;
-        const totalWins = parseInt(p.Wins || p.wins) || winIncrement;
-
-        const sql = `
-            INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(player_id) DO UPDATE SET
-                name = CASE WHEN excluded.name != 'Player' THEN excluded.name ELSE players.name END,
-                region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
-                wins = MAX(players.wins, ?),
-                matches = MAX(players.matches, ?),
-                score = ?,
-                updated_at = CURRENT_TIMESTAMP
-        `;
-        return new Promise(resolve => db.run(sql, [targetSteamId, pureName, region, totalWins, totalMatches, exactScore, totalWins, totalMatches, exactScore], resolve));
-    } else {
-        const change = parseInt(p.scoreChange || p.change) || 0;
-        const sql = `
-            INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-            VALUES (?, ?, ?, ?, 1, MAX(0, 1000 + ?), CURRENT_TIMESTAMP)
-            ON CONFLICT(player_id) DO UPDATE SET
-                name = CASE WHEN excluded.name != 'Player' THEN excluded.name ELSE players.name END,
-                region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
-                wins = players.wins + ?,
-                matches = players.matches + 1,
-                score = MAX(0, players.score + ?),
-                updated_at = CURRENT_TIMESTAMP
-        `;
-        return new Promise(resolve => db.run(sql, [targetSteamId, pureName, region, winIncrement, change, winIncrement, change], resolve));
+    // 默认 fallback
+    if (score === null) {
+        const change = parseInt(body.scoreChange) || 0;
+        score = Math.max(0, 1000 + change);
     }
+    if (wins === null) wins = body.isWin ? 1 : 0;
+    if (matches === null) matches = 1;
+
+    const sql = `
+        INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(player_id) DO UPDATE SET
+            name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
+            region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
+            wins = ?,
+            matches = ?,
+            score = ?,
+            updated_at = CURRENT_TIMESTAMP
+    `;
+
+    return new Promise(resolve => {
+        db.run(sql, [steamId, name, region, wins, matches, score, wins, matches, score], function (err) {
+            if (!err) {
+                console.log(`[插件全自动同步] ID: ${steamId} | 玩家: ${name} | 分数: ${score} | 胜场: ${wins}/${matches} | 国家: ${region}`);
+            }
+            resolve();
+        });
+    });
 }
 
+// 接收 C# 插件的 POST
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
 
-    // 1. 如果传过来的是文本（比如本地格式文本）
-    if (typeof req.body === 'string' && req.body.includes('|')) {
-        const lines = req.body.trim().split('\n');
-        for (let line of lines) {
-            const parts = line.trim().split('|');
-            const pObj = { steamId: parts[0] };
-            for (let i = 1; i < parts.length; i++) {
-                const [k, ...v] = parts[i].split(':');
-                pObj[k] = v.join(':');
-            }
-            await savePlayerRecord(pObj);
-        }
-        return res.json({ status: "success", message: `已自动更新 ${lines.length} 位玩家战绩！` });
-    }
-
-    // 2. 如果传过来的是玩家数组
+    // 兼容数组/单条
     if (Array.isArray(req.body)) {
-        for (const p of req.body) {
-            await savePlayerRecord(p);
+        for (const item of req.body) {
+            await processReport(item);
         }
-        return res.json({ status: "success", count: req.body.length });
+    } else {
+        await processReport(req.body);
     }
 
-    // 3. 如果是传单个玩家
-    await savePlayerRecord(req.body);
     res.json({ status: "success" });
 });
 
