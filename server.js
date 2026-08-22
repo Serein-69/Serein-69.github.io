@@ -10,9 +10,11 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "YOUR_STEAM_WEB_API_KEY";
 
-// Discord 机器人环境变量（直接在 Railway 面板的 Variables 里配置）
+// Discord 配置
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "";
+// 你的专属绑定频道 ID
+const ALLOWED_CHANNEL_ID = "1486669922594459658";
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
@@ -92,7 +94,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表查询接口
+// 排行榜列表接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -115,7 +117,6 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// Discord 绑定核心逻辑封装
 async function handleBindPlayer(steamId, discordId) {
     const cleanSteamId = String(steamId || "").trim();
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
@@ -146,7 +147,6 @@ async function handleBindPlayer(steamId, discordId) {
     });
 }
 
-// 供外部 HTTP 调用的绑定接口
 app.post('/api/bot/bind-steam', async (req, res) => {
     const apiKey = req.headers['x-api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -159,7 +159,6 @@ app.post('/api/bot/bind-steam', async (req, res) => {
     }
 });
 
-// 处理游戏插件上报
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -212,7 +211,6 @@ async function processReport(body) {
     });
 }
 
-// 接收 C# 插件 POST 战绩
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -269,7 +267,7 @@ app.post('/api/score', async (req, res) => {
     res.json({ status: "success" });
 });
 
-// =================【 DISCORD 机器人集成启动 】=================
+// =================【 DISCORD 机器人：代码级锁定频道 】=================
 if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
     const discordClient = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -290,7 +288,7 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
         console.log(`🤖 Discord 机器人已上线: ${discordClient.user.tag}`);
         try {
             await rest.put(Routes.applicationCommands(DISCORD_CLIENT_ID), { body: commands });
-            console.log('✅ Discord /bind 指令注册就绪！');
+            console.log(`✅ Discord /bind 指令注册就绪！(限定在频道: ${ALLOWED_CHANNEL_ID})`);
         } catch (error) {
             console.error('❌ 指令注册失败:', error);
         }
@@ -300,6 +298,14 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
         if (!interaction.isChatInputCommand()) return;
 
         if (interaction.commandName === 'bind') {
+            // 【核心拦截】：如果不是在指定频道发送，直接打回
+            if (ALLOWED_CHANNEL_ID && interaction.channelId !== ALLOWED_CHANNEL_ID) {
+                return interaction.reply({
+                    content: `⚠️ 请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
+                    ephemeral: true
+                });
+            }
+
             const steamId = interaction.options.getString('steamid').trim();
             await interaction.deferReply({ ephemeral: true });
 
@@ -340,8 +346,6 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
     discordClient.login(DISCORD_BOT_TOKEN).catch(err => {
         console.error("Discord 机器人登录失败:", err.message);
     });
-} else {
-    console.log("ℹ️ 未配置 DISCORD_BOT_TOKEN，Discord 机器人暂未启动。");
 }
 
 app.listen(PORT, () => {
