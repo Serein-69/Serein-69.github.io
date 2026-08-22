@@ -10,7 +10,6 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
-// Discord 配置
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "MTM0MzYwNDIzOTMyMjMyMDk4OA.G_iQEV.7eFb9QxsfyNnjfPugN1ldiEk9jxB6mj3NOFhSI";
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "1343604239322320988";
 const ALLOWED_CHANNEL_ID = "1486669922594459658";
@@ -69,11 +68,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// 初始化数据库表（执行清空并重建全新空白表）
+// 【已修复】：去掉 DROP TABLE，永久持久化保存数据！
 db.serialize(() => {
-    // 【核心执行清空】：清空原有所有 10865+ 名玩家历史数据
-    db.run(`DROP TABLE IF EXISTS players;`);
-
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,14 +85,14 @@ db.serialize(() => {
     `);
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已全部清空，全新排位系统就绪！");
+    console.log("[DB] 数据库服务就绪，数据持久化已开启！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表查询接口
+// 1. 排行榜列表接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -119,7 +115,7 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// Discord 绑定核心逻辑
+// Discord 绑定
 async function handleBindPlayer(steamId, discordId) {
     const cleanSteamId = String(steamId || "").trim();
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
@@ -150,7 +146,7 @@ async function handleBindPlayer(steamId, discordId) {
     });
 }
 
-// 处理战绩上传
+// 核心战绩处理（精准匹配插件的 rawLine 数据）
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -203,10 +199,21 @@ async function processReport(body) {
     });
 }
 
-// 接收比赛结算 POST
+// 接收 POST
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+
+    // 纯文本多行批量
+    if (typeof req.body === 'string' && req.body.includes('|')) {
+        const lines = req.body.trim().split('\n');
+        for (let line of lines) {
+            const parts = line.split('|');
+            const pObj = { steamId: parts[0], rawLine: line };
+            await processReport(pObj);
+        }
+        return res.json({ status: "success", count: lines.length });
+    }
 
     if (Array.isArray(req.body)) {
         for (const item of req.body) await processReport(item);
@@ -217,19 +224,7 @@ app.post('/api/score', async (req, res) => {
     res.json({ status: "success" });
 });
 
-// 手动清空数据库的安全 API（方便以后你想随时清空）
-app.post('/api/admin/clear-all-data', (req, res) => {
-    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    db.run("DELETE FROM players", (err) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        console.log("[DB] 管理员已清空所有玩家数据！");
-        res.json({ status: "success", message: "数据库已彻底清空！" });
-    });
-});
-
-// =================【 DISCORD 机器人集成 】=================
+// Discord 机器人
 if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
     const discordClient = new Client({ intents: [GatewayIntentBits.Guilds] });
 
