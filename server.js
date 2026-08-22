@@ -31,7 +31,7 @@ function cleanName(name) {
 
 // 自动根据外网 IP 查询国家代码
 function getCountryCodeByIP(ip, callback) {
-    if (!ip || ip === '127.0.0.1' || ip === '::1') return callback('CN'); // 默认回退
+    if (!ip || ip === '127.0.0.1' || ip === '::1') return callback('CN');
     const cleanIp = ip.split(',')[0].trim().replace(/^.*:/, '');
     const url = `http://ip-api.com/json/${cleanIp}?fields=status,countryCode`;
 
@@ -71,7 +71,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// 初始化数据库表
+// 初始化纯净表结构（无任何死数据）
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -90,21 +90,14 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_region ON players(region);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 
-    // 默认内置你的种子账号，防止数据库完全为空
-    db.run(`
-        INSERT INTO players (player_id, name, region, wins, matches, score)
-        VALUES ('76561199115475689', 'Serein', 'CN', 153, 279, 1303)
-        ON CONFLICT(player_id) DO NOTHING
-    `);
-
-    console.log("[DB] 数据库服务就绪！");
+    console.log("[DB] 纯净数据库已就绪，完全由 Mod 实时传输驱动！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 1. 排行榜列表查询接口
+// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = req.query.region || 'Global';
     let query = `
@@ -127,7 +120,7 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 2. 战绩上传接口：全自动解析 Mod 传入的【JSON】或【TXT 管道符行】
+// 战绩上传接口：全自动解析 Mod 传入的【JSON】或【TXT 管道符行】
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
@@ -178,6 +171,7 @@ app.post('/api/score', (req, res) => {
         let params = [];
 
         if (directScore !== null) {
+            // 直接由 txt 同步绝对值
             sql = `
                 INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -191,6 +185,7 @@ app.post('/api/score', (req, res) => {
             `;
             params = [targetSteamId, pureName, detectedCountry, directWins || 0, directMatches || 0, directScore];
         } else {
+            // 实时增量加减分
             sql = `
                 INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
                 VALUES (?, ?, ?, ?, 1, MAX(0, 1000 + ?), CURRENT_TIMESTAMP)
