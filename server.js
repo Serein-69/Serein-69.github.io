@@ -247,12 +247,12 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
     const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
 
     discordClient.once('ready', async () => {
-        console.log(`🤖 Discord 机器人已上线: ${discordClient.user.tag}`);
+        console.log(`Discord 机器人已上线: ${discordClient.user.tag}`);
         try {
             await rest.put(Routes.applicationCommands(DISCORD_CLIENT_ID), { body: commands });
-            console.log(`✅ Discord /bind 指令注册就绪！(限定在频道: ${ALLOWED_CHANNEL_ID})`);
+            console.log(`Discord /bind 指令注册就绪！(限定在频道: ${ALLOWED_CHANNEL_ID})`);
         } catch (error) {
-            console.error('❌ 指令注册失败:', error);
+            console.error('指令注册失败:', error);
         }
     });
 
@@ -262,7 +262,7 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
         if (interaction.commandName === 'bind') {
             if (ALLOWED_CHANNEL_ID && interaction.channelId !== ALLOWED_CHANNEL_ID) {
                 return interaction.reply({
-                    content: `⚠️ 请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
+                    content: `请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
                     ephemeral: true
                 });
             }
@@ -299,7 +299,7 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
 
                 await interaction.editReply({ embeds: [embed] });
             } else {
-                await interaction.editReply({ content: `❌ **绑定失败**: ${result.message}` });
+                await interaction.editReply({ content: `**绑定失败**: ${result.message}` });
             }
         }
     });
