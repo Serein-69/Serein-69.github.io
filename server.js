@@ -10,9 +10,9 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = "CRAB_SECRET_KEY_888888";
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.text());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.text({ limit: '10mb' })); // 支持直接上传整份 txt
 app.use(express.static(__dirname));
 
 function cleanName(name) {
@@ -29,7 +29,6 @@ function cleanName(name) {
         .trim() || "Unknown";
 }
 
-// 自动根据外网 IP 查询国家代码
 function getCountryCodeByIP(ip, callback) {
     if (!ip || ip === '127.0.0.1' || ip === '::1') return callback('CN');
     const cleanIp = ip.split(',')[0].trim().replace(/^.*:/, '');
@@ -71,7 +70,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// 初始化纯净表结构（无任何死数据）
+// 初始化数据库表
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -90,14 +89,14 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_region ON players(region);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 
-    console.log("[DB] 纯净数据库已就绪，完全由 Mod 实时传输驱动！");
+    console.log("[DB] 数据库已就绪！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表查询接口
+// 1. 排行榜查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = req.query.region || 'Global';
     let query = `
@@ -120,11 +119,62 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 战绩上传接口：全自动解析 Mod 传入的【JSON】或【TXT 管道符行】
+// 2. 批量同步整份本地 TXT 文件接口
+app.post('/api/sync-txt', (req, res) => {
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+
+    const rawContent = typeof req.body === 'string' ? req.body : (req.body.content || "");
+    if (!rawContent) return res.status(400).json({ status: "error", message: "内容为空" });
+
+    const lines = rawContent.trim().split(/\r?\n/);
+    const stmt = db.prepare(`
+        INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
+        VALUES (?, ?, 'CN', ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(player_id) DO UPDATE SET
+            name = excluded.name,
+            wins = excluded.wins,
+            matches = excluded.matches,
+            score = excluded.score,
+            updated_at = CURRENT_TIMESTAMP
+    `);
+
+    db.serialize(() => {
+        db.run("BEGIN TRANSACTION;");
+        lines.forEach(line => {
+            if (!line.includes('|')) return;
+            const segs = line.split('|');
+            const sid = segs[0].trim();
+            let pName = "Unknown", pScore = 1000, pWins = 0, pMatches = 0;
+
+            segs.forEach(s => {
+                const [k, v] = s.split(':');
+                if (k && v) {
+                    const key = k.trim().toLowerCase();
+                    const val = v.trim();
+                    if (key === 'username') pName = cleanName(val);
+                    if (key === 'currentelo') pScore = parseInt(val, 10);
+                    if (key === 'wins') pWins = parseInt(val, 10);
+                    if (key === 'totalmatches') pMatches = parseInt(val, 10);
+                }
+            });
+
+            if (sid && /^\d+$/.test(sid)) {
+                stmt.run(sid, pName, pWins, pMatches, pScore);
+            }
+        });
+        stmt.finalize();
+        db.run("COMMIT;", () => {
+            res.json({ status: "success", message: `成功同步 ${lines.length} 条本地战绩！` });
+        });
+    });
+});
+
+// 3. 游戏单局结算上传接口
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
-        return res.status(403).json({ status: "error", message: "Forbidden: Invalid API Key" });
+        return res.status(403).json({ status: "error", message: "Forbidden" });
     }
 
     let targetSteamId = "";
@@ -135,7 +185,6 @@ app.post('/api/score', (req, res) => {
     let directWins = null;
     let directMatches = null;
 
-    // 解析 Mod 传来的管道符行 (765611...|Username:xxx|CurrentElo:xxx|...)
     let rawText = typeof req.body === 'string' ? req.body : (req.body.rawLine || "");
     if (rawText && rawText.includes('|')) {
         const segments = rawText.split('|');
@@ -171,7 +220,6 @@ app.post('/api/score', (req, res) => {
         let params = [];
 
         if (directScore !== null) {
-            // 直接由 txt 同步绝对值
             sql = `
                 INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -185,7 +233,6 @@ app.post('/api/score', (req, res) => {
             `;
             params = [targetSteamId, pureName, detectedCountry, directWins || 0, directMatches || 0, directScore];
         } else {
-            // 实时增量加减分
             sql = `
                 INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
                 VALUES (?, ?, ?, ?, 1, MAX(0, 1000 + ?), CURRENT_TIMESTAMP)
@@ -204,7 +251,6 @@ app.post('/api/score', (req, res) => {
             if (err) return res.status(500).json({ status: "error", message: err.message });
 
             db.get("SELECT player_id, name, region, score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
-                console.log(`[战绩已更新] ID: ${targetSteamId} | 玩家: ${row.name} | 地区: ${row.region} | 分数: ${row.score}`);
                 res.json({ status: "success", data: row });
             });
         });
