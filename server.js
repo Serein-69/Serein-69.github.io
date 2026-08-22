@@ -6,7 +6,9 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_SECRET_KEY = "CRAB_SECRET_KEY_888888";
+const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
+// 你的 Steam Web API Key (可在 https://steamcommunity.com/dev/apikey 获取)
+const STEAM_API_KEY = process.env.STEAM_API_KEY || "YOUR_STEAM_WEB_API_KEY";
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -26,6 +28,29 @@ function cleanName(name) {
         .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
         .replace(/^["']|["']$/g, '')
         .trim() || "Unknown";
+}
+
+// 辅助函数：根据 SteamID 请求 Steam API 查询玩家国家和昵称
+async function fetchSteamProfile(steamId) {
+    if (!STEAM_API_KEY || STEAM_API_KEY === "YOUR_STEAM_WEB_API_KEY") {
+        console.warn("[Steam API] 未配置 STEAM_API_KEY，跳过在线查询。");
+        return null;
+    }
+    try {
+        const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${steamId}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const player = data?.response?.players?.[0];
+        if (!player) return null;
+
+        return {
+            personaName: player.personaname || null,
+            countryCode: player.loccountrycode ? player.loccountrycode.toUpperCase() : 'GLOBAL'
+        };
+    } catch (e) {
+        console.error("[Steam API Error]", e.message);
+        return null;
+    }
 }
 
 let dataFolder = __dirname;
@@ -56,25 +81,11 @@ db.serialize(() => {
             player_id TEXT UNIQUE,
             name TEXT NOT NULL,
             region TEXT DEFAULT 'Global',
-            bind_key TEXT,
+            discord_id TEXT,
             wins INTEGER DEFAULT 0,
             matches INTEGER DEFAULT 0,
             score INTEGER DEFAULT 1000,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-
-    // 密钥池表（存放给 Discord 机器人发放的密钥和对应国籍）
-    db.run(`
-        CREATE TABLE IF NOT EXISTS access_keys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            key_code TEXT UNIQUE,
-            region TEXT DEFAULT 'CN',
-            bound_steam_id TEXT,
-            discord_id TEXT,
-            status TEXT DEFAULT 'unassigned',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            bound_at DATETIME
         )
     `);
 
@@ -112,68 +123,51 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 2. Discord 机器人生成/发放密钥接口 (供 Discord Bot 调用)
-// 机器人调用时传: { discordId: "123456", region: "CN" }
-app.post('/api/bot/generate-key', (req, res) => {
+// 2. Discord Bot 专属绑定接口：自动通过 Steam API 获取国家与昵称
+app.post('/api/bot/bind-steam', async (req, res) => {
     const apiKey = req.headers['x-api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+    if (apiKey !== SERVER_SECRET_KEY) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+    }
 
-    const discordId = req.body.discordId || "unknown";
-    const region = (req.body.region || "CN").toUpperCase();
-    
-    // 生成一个标准的随机 GUID 密钥
-    const generatedKey = 'CRAB-' + Math.random().toString(36).substr(2, 6).toUpperCase() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    const { steamId, discordId } = req.body;
+    const cleanSteamId = String(steamId || "").trim();
 
-    const sql = `INSERT INTO access_keys (key_code, region, discord_id, status) VALUES (?, ?, ?, 'pending')`;
-    db.run(sql, [generatedKey, region, discordId], function (err) {
+    if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
+        return res.status(400).json({ status: "error", message: "无效的 64 位 SteamID！" });
+    }
+
+    // 自动请求 Steam 官方 API 查询玩家个人资料中的国家和名字
+    const steamInfo = await fetchSteamProfile(cleanSteamId);
+    const country = steamInfo?.countryCode || 'GLOBAL';
+    const steamName = cleanName(steamInfo?.personaName || 'Player');
+
+    const sql = `
+        INSERT INTO players (player_id, name, region, discord_id, wins, matches, score, updated_at)
+        VALUES (?, ?, ?, ?, 0, 0, 1000, CURRENT_TIMESTAMP)
+        ON CONFLICT(player_id) DO UPDATE SET
+            name = CASE WHEN excluded.name != 'Unknown' AND excluded.name != 'Player' THEN excluded.name ELSE players.name END,
+            region = excluded.region,
+            discord_id = excluded.discord_id,
+            updated_at = CURRENT_TIMESTAMP
+    `;
+
+    db.run(sql, [cleanSteamId, steamName, country, discordId || null], function (err) {
         if (err) return res.status(500).json({ status: "error", message: err.message });
         res.json({
             status: "success",
-            keyCode: generatedKey,
-            region: region,
-            message: `成功为 Discord 用户生成密钥！`
+            data: {
+                steamId: cleanSteamId,
+                name: steamName,
+                region: country,
+                discordId: discordId
+            },
+            message: `绑定成功！玩家: ${steamName} | 国家: ${country}`
         });
     });
 });
 
-// 3. 游戏内玩家输入 !bind <密钥> 绑定 SteamID 与国籍
-app.post('/api/bind', (req, res) => {
-    const { steamId, keyCode } = req.body;
-    if (!steamId || !keyCode) {
-        return res.status(400).json({ status: "error", message: "缺少 SteamID 或密钥" });
-    }
-
-    const cleanKey = keyCode.trim();
-    const cleanSteamId = String(steamId).trim();
-
-    db.get("SELECT * FROM access_keys WHERE key_code = ?", [cleanKey], (err, keyRecord) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        if (!keyRecord) {
-            return res.status(404).json({ status: "error", message: "密钥无效！" });
-        }
-        if (keyRecord.status === 'bound' && keyRecord.bound_steam_id !== cleanSteamId) {
-            return res.status(400).json({ status: "error", message: "该密钥已被其他账号绑定！" });
-        }
-
-        const assignedRegion = keyRecord.region || 'CN';
-
-        // 标记密钥为已绑定，并同步更新玩家表中的国籍与密钥
-        db.run("UPDATE access_keys SET bound_steam_id = ?, status = 'bound', bound_at = CURRENT_TIMESTAMP WHERE key_code = ?", [cleanSteamId, cleanKey], () => {
-            db.run(`
-                INSERT INTO players (player_id, name, region, bind_key, wins, matches, score, updated_at)
-                VALUES (?, 'Player', ?, ?, 0, 0, 1000, CURRENT_TIMESTAMP)
-                ON CONFLICT(player_id) DO UPDATE SET
-                    region = excluded.region,
-                    bind_key = excluded.bind_key,
-                    updated_at = CURRENT_TIMESTAMP
-            `, [cleanSteamId, assignedRegion, cleanKey], () => {
-                res.json({ status: "success", message: `绑定成功！已加入 [${assignedRegion}] 地区天梯。` });
-            });
-        });
-    });
-});
-
-// 4. 比赛结算自动上传（完全自动，无需玩家任何手动操作）
+// 3. 游戏内比赛结算上报接口
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
@@ -192,7 +186,7 @@ app.post('/api/score', (req, res) => {
 
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-        VALUES (?, ?, 'CN', ?, 1, MAX(0, 1000 + ?), CURRENT_TIMESTAMP)
+        VALUES (?, ?, 'GLOBAL', ?, 1, MAX(0, 1000 + ?), CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
             name = CASE WHEN excluded.name != 'Unknown' AND excluded.name != '' THEN excluded.name ELSE players.name END,
             wins = players.wins + ?,
@@ -205,7 +199,7 @@ app.post('/api/score', (req, res) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
 
         db.get("SELECT player_id, name, region, score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
-            console.log(`[战绩全自动同步] ID: ${targetSteamId} | 玩家: ${row.name} | 分数: ${row.score}`);
+            console.log(`[战绩同步] ID: ${targetSteamId} | 玩家: ${row?.name} | 地区: ${row?.region} | 分数: ${row?.score}`);
             res.json({ status: "success", data: row });
         });
     });
