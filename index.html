@@ -79,8 +79,8 @@
         .rank-3 { color: var(--bronze); }
 
         .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; }
-        .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
-        .flag-tag { font-size: 1.1rem; display: inline-flex; align-items: center; white-space: nowrap; }
+        .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
+        .flag-tag { font-size: 1.3rem; display: inline-flex; align-items: center; }
         .unbound-flag { color: #64748b; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
 
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
@@ -270,7 +270,7 @@
 
         let currentLang = localStorage.getItem('crab_ranking_lang') || 'zh';
 
-        // 统一国旗处理：将 2 位 ISO 国家代码转换为 Emoji 国旗，未公开或未绑定返回自定义 HTML
+        // 将 2 位国家代码转换为标准 Emoji 国旗（例如 CN -> 🇨🇳, US -> 🇺🇸）
         function getCountryFlagHtml(code) {
             const t = I18N[currentLang] || I18N.zh;
             if (!code || code.toUpperCase() === 'GLOBAL' || code.length !== 2) {
@@ -358,7 +358,7 @@
                 document.getElementById('mvpName').innerHTML = `${getCountryFlagHtml(top1.region)} <span>${top1.name}</span>`;
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
-                document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
+                document.getElementById('mvpAvatar').innerText = (top1.name || "P").substring(0, 1).toUpperCase();
             }
         }
 
@@ -398,7 +398,7 @@
                     <td>${flagHtml}</td>
                     <td>
                         <div class="player-cell">
-                            <div class="player-avatar">${p.name.substring(0, 1).toUpperCase()}</div>
+                            <div class="player-avatar">${(p.name || "P").substring(0, 1).toUpperCase()}</div>
                             <span>${p.name}</span>
                         </div>
                     </td>
@@ -471,7 +471,6 @@
             renderUI(e.target.value);
         });
 
-        // 初始化
         changeLanguage(currentLang);
         loadLeaderboard();
         setInterval(loadLeaderboard, 5000);
