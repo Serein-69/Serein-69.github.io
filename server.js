@@ -10,10 +10,8 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "YOUR_STEAM_WEB_API_KEY";
 
-// Discord 配置
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "";
-// 你的专属绑定频道 ID
 const ALLOWED_CHANNEL_ID = "1486669922594459658";
 
 app.use(cors());
