@@ -80,7 +80,8 @@
 
         .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; }
         .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
-        .flag-tag { font-size: 1.1rem; display: inline-flex; align-items: center; }
+        .flag-tag { font-size: 1.1rem; display: inline-flex; align-items: center; white-space: nowrap; }
+        .unbound-flag { color: #64748b; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
 
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
 
@@ -123,7 +124,7 @@
             padding: 3px; box-shadow: 0 0 25px rgba(168, 85, 247, 0.6);
         }
         .mvp-avatar-glow div { width: 100%; height: 100%; border-radius: 50%; background: #0c0e14; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: var(--gold); }
-        .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; }
+        .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .mvp-tier-box { margin-bottom: 8px; }
         .mvp-score { font-size: 1.8rem; font-weight: 900; color: #ffffff; }
 
@@ -141,10 +142,8 @@
     <nav class="navbar">
         <div class="logo">CRAB GAME RANKING</div>
         <select class="lang-select" id="languageSelector" onchange="changeLanguage(this.value)">
-            <option value="en">English (EN)</option>
             <option value="zh">简体中文 (ZH)</option>
-            <option value="ru">Русский (RU)</option>
-            <option value="tr">Türkçe (TR)</option>
+            <option value="en">English (EN)</option>
         </select>
     </nav>
 
@@ -253,6 +252,7 @@
                 table_title: "World Rankings", search_ph: "Search player...",
                 th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
+                unbound_label: "Unbound", no_player: "No players found",
                 pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
                 pg_search_result: "Found", pg_total: "total"
             },
@@ -262,6 +262,7 @@
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
                 th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率",
                 mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
+                unbound_label: "未绑定", no_player: "未找到玩家",
                 pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
                 pg_search_result: "找到", pg_total: "全服共"
             }
@@ -269,14 +270,20 @@
 
         let currentLang = localStorage.getItem('crab_ranking_lang') || 'zh';
 
-        function getCountryFlag(code) {
-            if (!code || code === 'Global') return '🌐';
-            const flags = {
-                'CN': '🇨🇳', 'US': '🇺🇸', 'TR': '🇹🇷', 'RU': '🇷🇺',
-                'GB': '🇬🇧', 'DE': '🇩🇪', 'FR': '🇫🇷', 'JP': '🇯🇵',
-                'KR': '🇰🇷', 'CA': '🇨🇦', 'BR': '🇧🇷', 'AU': '🇦🇺'
-            };
-            return flags[code.toUpperCase()] || '🌐';
+        // 统一国旗处理：将 2 位 ISO 国家代码转换为 Emoji 国旗，未公开或未绑定返回自定义 HTML
+        function getCountryFlagHtml(code) {
+            const t = I18N[currentLang] || I18N.zh;
+            if (!code || code.toUpperCase() === 'GLOBAL' || code.length !== 2) {
+                return `<span class="unbound-flag">🌐 ${t.unbound_label}</span>`;
+            }
+            try {
+                const base = 127397;
+                const chars = [...code.toUpperCase()].map(c => c.charCodeAt(0) + base);
+                const flagEmoji = String.fromCodePoint(...chars);
+                return `<span class="flag-tag">${flagEmoji}</span>`;
+            } catch (e) {
+                return `<span class="unbound-flag">🌐 ${t.unbound_label}</span>`;
+            }
         }
 
         function getTierInfo(score) {
@@ -318,6 +325,7 @@
                 if (t[key]) el.placeholder = t[key];
             });
 
+            updateHeroStats();
             renderUI(document.getElementById('searchInput').value);
         }
 
@@ -344,10 +352,10 @@
             document.getElementById('statMatches').innerText = totalMatches.toLocaleString();
 
             if (cachedPlayers.length > 0) {
-                document.getElementById('statTopMMR').innerText = cachedPlayers[0].score.toLocaleString();
                 const top1 = cachedPlayers[0];
+                document.getElementById('statTopMMR').innerText = top1.score.toLocaleString();
                 const top1Tier = getTierInfo(top1.score);
-                document.getElementById('mvpName').innerText = `${getCountryFlag(top1.region)} ${top1.name}`;
+                document.getElementById('mvpName').innerHTML = `${getCountryFlagHtml(top1.region)} <span>${top1.name}</span>`;
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
                 document.getElementById('mvpAvatar').innerText = top1.name.substring(0, 1).toUpperCase();
@@ -356,13 +364,14 @@
 
         function renderUI(query = "") {
             const tbody = document.getElementById('leaderboardBody');
+            const t = I18N[currentLang] || I18N.zh;
             const trimmedQuery = query.trim().toLowerCase();
             const list = cachedPlayers.filter(p => p.name.toLowerCase().includes(trimmedQuery));
 
             tbody.innerHTML = "";
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666; padding:30px;">未找到玩家</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666; padding:30px;">${t.no_player}</td></tr>`;
                 renderPagination(0, 0, trimmedQuery);
                 return;
             }
@@ -381,12 +390,12 @@
                 const tier = getTierInfo(p.score);
                 const losses = Math.max(0, (p.matches || 0) - (p.wins || 0));
                 const winRateFormatted = (parseFloat(p.winRate) || 0).toFixed(1);
-                const flag = getCountryFlag(p.region);
+                const flagHtml = getCountryFlagHtml(p.region);
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="rank-num ${rankClass}">${rankIcon}</td>
-                    <td><span class="flag-tag">${flag}</span></td>
+                    <td>${flagHtml}</td>
                     <td>
                         <div class="player-cell">
                             <div class="player-avatar">${p.name.substring(0, 1).toUpperCase()}</div>
@@ -407,18 +416,19 @@
         function renderPagination(matchedCount, totalCount, query) {
             const controls = document.getElementById('paginationControls');
             const info = document.getElementById('paginationInfo');
+            const t = I18N[currentLang] || I18N.zh;
             const totalPages = Math.ceil(matchedCount / pageSize) || 1;
 
             if (matchedCount === 0) {
-                info.innerText = `显示 0 / 0 名玩家`;
+                info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
             } else if (query) {
                 const start = (currentPage - 1) * pageSize + 1;
                 const end = Math.min(currentPage * pageSize, matchedCount);
-                info.innerText = `找到 ${matchedCount} (显示 ${start}-${end}, 榜单共 ${totalCount.toLocaleString()})`;
+                info.innerText = `${t.pg_search_result} ${matchedCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${totalCount.toLocaleString()})`;
             } else {
                 const start = (currentPage - 1) * pageSize + 1;
                 const end = Math.min(currentPage * pageSize, totalCount);
-                info.innerText = `显示 ${start}-${end} / ${totalCount.toLocaleString()} 名玩家`;
+                info.innerText = `${t.pg_showing} ${start}-${end} ${t.pg_of} ${totalCount.toLocaleString()} ${t.pg_players}`;
             }
 
             controls.innerHTML = "";
@@ -426,7 +436,7 @@
 
             const prevBtn = document.createElement('button');
             prevBtn.className = 'page-btn';
-            prevBtn.innerText = '上一页';
+            prevBtn.innerText = t.pg_prev;
             prevBtn.disabled = currentPage === 1;
             prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; renderUI(document.getElementById('searchInput').value); } };
             controls.appendChild(prevBtn);
@@ -450,7 +460,7 @@
 
             const nextBtn = document.createElement('button');
             nextBtn.className = 'page-btn';
-            nextBtn.innerText = '下一页';
+            nextBtn.innerText = t.pg_next;
             nextBtn.disabled = currentPage === totalPages;
             nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; renderUI(document.getElementById('searchInput').value); } };
             controls.appendChild(nextBtn);
@@ -461,6 +471,7 @@
             renderUI(e.target.value);
         });
 
+        // 初始化
         changeLanguage(currentLang);
         loadLeaderboard();
         setInterval(loadLeaderboard, 5000);
