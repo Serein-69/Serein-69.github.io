@@ -29,8 +29,9 @@ function cleanName(name) {
         .trim() || "Unknown";
 }
 
+// 自动根据外网 IP 查询国家代码
 function getCountryCodeByIP(ip, callback) {
-    if (!ip || ip === '127.0.0.1' || ip === '::1') return callback('Global');
+    if (!ip || ip === '127.0.0.1' || ip === '::1') return callback('CN'); // 默认回退
     const cleanIp = ip.split(',')[0].trim().replace(/^.*:/, '');
     const url = `http://ip-api.com/json/${cleanIp}?fields=status,countryCode`;
 
@@ -44,10 +45,10 @@ function getCountryCodeByIP(ip, callback) {
                     return callback(parsed.countryCode.toUpperCase());
                 }
             } catch (e) {}
-            callback('Global');
+            callback('CN');
         });
     }).on('error', () => {
-        callback('Global');
+        callback('CN');
     });
 }
 
@@ -78,7 +79,6 @@ db.serialize(() => {
             player_id TEXT UNIQUE,
             name TEXT NOT NULL,
             region TEXT DEFAULT 'Global',
-            bind_key TEXT,
             wins INTEGER DEFAULT 0,
             matches INTEGER DEFAULT 0,
             score INTEGER DEFAULT 1000,
@@ -86,29 +86,25 @@ db.serialize(() => {
         )
     `);
 
-    db.run(`
-        CREATE TABLE IF NOT EXISTS access_keys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            key_code TEXT UNIQUE,
-            bound_steam_id TEXT,
-            status TEXT DEFAULT 'unassigned',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            bound_at DATETIME
-        )
-    `);
-
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_region ON players(region);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 
-    console.log("[DB] 数据库服务已就绪！");
+    // 默认内置你的种子账号，防止数据库完全为空
+    db.run(`
+        INSERT INTO players (player_id, name, region, wins, matches, score)
+        VALUES ('76561199115475689', 'Serein', 'CN', 153, 279, 1303)
+        ON CONFLICT(player_id) DO NOTHING
+    `);
+
+    console.log("[DB] 数据库服务就绪！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 1. 排行榜接口
+// 1. 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = req.query.region || 'Global';
     let query = `
@@ -131,59 +127,7 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 2. 录入密钥接口
-app.post('/api/admin/keys', (req, res) => {
-    const apiKey = req.headers['x-api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    const { keys } = req.body;
-    if (!keys) return res.status(400).json({ status: "error", message: "缺少密钥列表" });
-
-    const keyList = Array.isArray(keys) ? keys : String(keys).split(/[\r\n,]+/);
-    const stmt = db.prepare(`INSERT INTO access_keys (key_code, status) VALUES (?, 'unassigned') ON CONFLICT(key_code) DO NOTHING`);
-
-    db.serialize(() => {
-        db.run("BEGIN TRANSACTION;");
-        keyList.forEach(k => {
-            const cleanKey = k.trim();
-            if (cleanKey.length > 3) stmt.run(cleanKey);
-        });
-        stmt.finalize();
-        db.run("COMMIT;", () => {
-            res.json({ status: "success", message: `成功录入密钥！` });
-        });
-    });
-});
-
-// 3. 游戏内绑定接口
-app.post('/api/bind', (req, res) => {
-    const { steamId, keyCode } = req.body;
-    if (!steamId || !keyCode) {
-        return res.status(400).json({ status: "error", message: "缺少 SteamID 或密钥" });
-    }
-
-    const cleanKey = keyCode.trim();
-    const cleanSteamId = String(steamId).trim();
-
-    db.get("SELECT * FROM access_keys WHERE key_code = ?", [cleanKey], (err, keyRecord) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        if (!keyRecord) {
-            return res.status(404).json({ status: "error", message: "密钥无效！" });
-        }
-        if (keyRecord.status === 'bound' && keyRecord.bound_steam_id !== cleanSteamId) {
-            return res.status(400).json({ status: "error", message: "该密钥已被其他账号绑定！" });
-        }
-
-        db.run("UPDATE access_keys SET bound_steam_id = ?, status = 'bound', bound_at = CURRENT_TIMESTAMP WHERE key_code = ?", 
-            [cleanSteamId, cleanKey], () => {
-                db.run("UPDATE players SET bind_key = ? WHERE player_id = ?", [cleanKey, cleanSteamId]);
-                res.json({ status: "success", message: "绑定成功！" });
-            }
-        );
-    });
-});
-
-// 4. 战绩上传接口
+// 2. 战绩上传接口：全自动解析 Mod 传入的【JSON】或【TXT 管道符行】
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
@@ -198,6 +142,7 @@ app.post('/api/score', (req, res) => {
     let directWins = null;
     let directMatches = null;
 
+    // 解析 Mod 传来的管道符行 (765611...|Username:xxx|CurrentElo:xxx|...)
     let rawText = typeof req.body === 'string' ? req.body : (req.body.rawLine || "");
     if (rawText && rawText.includes('|')) {
         const segments = rawText.split('|');
@@ -222,7 +167,7 @@ app.post('/api/score', (req, res) => {
     }
 
     if (!targetSteamId || !/^\d+$/.test(targetSteamId)) {
-        return res.status(400).json({ status: "error", message: "Missing or invalid SteamID" });
+        return res.status(400).json({ status: "error", message: "Missing SteamID" });
     }
 
     const winIncrement = isWin ? 1 : 0;
@@ -264,6 +209,7 @@ app.post('/api/score', (req, res) => {
             if (err) return res.status(500).json({ status: "error", message: err.message });
 
             db.get("SELECT player_id, name, region, score, wins, matches FROM players WHERE player_id = ?", [targetSteamId], (err, row) => {
+                console.log(`[战绩已更新] ID: ${targetSteamId} | 玩家: ${row.name} | 地区: ${row.region} | 分数: ${row.score}`);
                 res.json({ status: "success", data: row });
             });
         });
