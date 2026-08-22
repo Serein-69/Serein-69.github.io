@@ -47,7 +47,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
+// 初始化数据库表
 db.serialize(() => {
+    // 玩家表
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,6 +64,7 @@ db.serialize(() => {
         )
     `);
 
+    // 密钥池表（存放给 Discord 机器人发放的密钥和对应国籍）
     db.run(`
         CREATE TABLE IF NOT EXISTS access_keys (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,6 +89,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// 1. 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = req.query.region || 'Global';
     let query = `
@@ -108,6 +112,8 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
+// 2. Discord 机器人生成/发放密钥接口 (供 Discord Bot 调用)
+// 机器人调用时传: { discordId: "123456", region: "CN" }
 app.post('/api/bot/generate-key', (req, res) => {
     const apiKey = req.headers['x-api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -115,6 +121,7 @@ app.post('/api/bot/generate-key', (req, res) => {
     const discordId = req.body.discordId || "unknown";
     const region = (req.body.region || "CN").toUpperCase();
     
+    // 生成一个标准的随机 GUID 密钥
     const generatedKey = 'CRAB-' + Math.random().toString(36).substr(2, 6).toUpperCase() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
 
     const sql = `INSERT INTO access_keys (key_code, region, discord_id, status) VALUES (?, ?, ?, 'pending')`;
@@ -150,6 +157,7 @@ app.post('/api/bind', (req, res) => {
 
         const assignedRegion = keyRecord.region || 'CN';
 
+        // 标记密钥为已绑定，并同步更新玩家表中的国籍与密钥
         db.run("UPDATE access_keys SET bound_steam_id = ?, status = 'bound', bound_at = CURRENT_TIMESTAMP WHERE key_code = ?", [cleanSteamId, cleanKey], () => {
             db.run(`
                 INSERT INTO players (player_id, name, region, bind_key, wins, matches, score, updated_at)
@@ -165,6 +173,7 @@ app.post('/api/bind', (req, res) => {
     });
 });
 
+// 4. 比赛结算自动上传（完全自动，无需玩家任何手动操作）
 app.post('/api/score', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) {
