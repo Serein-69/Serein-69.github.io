@@ -34,6 +34,7 @@ function cleanName(name) {
         .trim() || "Player";
 }
 
+// 仅在 Discord 用户输入 /bind 时调用 Steam API
 async function fetchSteamProfile(steamId) {
     if (!STEAM_API_KEY || STEAM_API_KEY === "YOUR_STEAM_WEB_API_KEY") return null;
     try {
@@ -68,7 +69,6 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// 【已修复】：去掉 DROP TABLE，永久持久化保存数据！
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS players (
@@ -85,14 +85,14 @@ db.serialize(() => {
     `);
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库服务就绪，数据持久化已开启！");
+    console.log("[DB] 数据库服务就绪！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 1. 排行榜列表接口
+// 排行榜列表
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -115,7 +115,7 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// Discord 绑定
+// 【唯一合法绑定入口】：玩家在 Discord 输入 /bind 绑定
 async function handleBindPlayer(steamId, discordId) {
     const cleanSteamId = String(steamId || "").trim();
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
@@ -131,6 +131,7 @@ async function handleBindPlayer(steamId, discordId) {
             INSERT INTO players (player_id, name, region, discord_id, wins, matches, score, updated_at)
             VALUES (?, ?, ?, ?, 0, 0, 1000, CURRENT_TIMESTAMP)
             ON CONFLICT(player_id) DO UPDATE SET
+                name = CASE WHEN players.name = 'Player' OR players.name = 'Unknown' THEN excluded.name ELSE players.name END,
                 region = excluded.region,
                 discord_id = excluded.discord_id,
                 updated_at = CURRENT_TIMESTAMP
@@ -146,7 +147,7 @@ async function handleBindPlayer(steamId, discordId) {
     });
 }
 
-// 核心战绩处理（精准匹配插件的 rawLine 数据）
+// 【游戏结算上报】：纯粹更新分数与名字，彻底删掉自动查国家，未绑定的永远是 GLOBAL
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -169,25 +170,16 @@ async function processReport(body) {
 
     if (!steamId || !/^\d+$/.test(steamId)) return;
 
-    let region = 'GLOBAL';
-    const steamInfo = await fetchSteamProfile(steamId);
-    if (steamInfo) {
-        if (steamInfo.countryCode) region = steamInfo.countryCode;
-        if ((!name || name === 'Player' || name === 'Unknown') && steamInfo.personaName) {
-            name = cleanName(steamInfo.personaName);
-        }
-    }
-
     if (score === null) score = Math.max(0, 1000 + (parseInt(body.scoreChange) || 0));
     if (wins === null) wins = body.isWin ? 1 : 0;
     if (matches === null) matches = 1;
 
+    // 绝不擅自更改 region，只保留玩家通过 Discord 绑定的国籍
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, 'GLOBAL', ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
             name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
-            region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
             wins = ?,
             matches = ?,
             score = ?,
@@ -195,16 +187,14 @@ async function processReport(body) {
     `;
 
     return new Promise(resolve => {
-        db.run(sql, [steamId, name, region, wins, matches, score, wins, matches, score], resolve);
+        db.run(sql, [steamId, name, wins, matches, score, wins, matches, score], resolve);
     });
 }
 
-// 接收 POST
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
 
-    // 纯文本多行批量
     if (typeof req.body === 'string' && req.body.includes('|')) {
         const lines = req.body.trim().split('\n');
         for (let line of lines) {
@@ -269,24 +259,13 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
 
             if (result.success) {
                 const { name, region } = result.data;
-                let flagEmoji = "🌐";
-                if (region && region !== 'GLOBAL' && region.length === 2) {
-                    try {
-                        const base = 127397;
-                        const chars = [...region.toUpperCase()].map(c => c.charCodeAt(0) + base);
-                        flagEmoji = String.fromCodePoint(...chars);
-                    } catch (e) {
-                        flagEmoji = "🌐";
-                    }
-                }
-
                 const embed = new EmbedBuilder()
                     .setColor(0x9333ea)
                     .setTitle('账号绑定成功！')
                     .setDescription('你的 Steam 账号已成功与全球天梯排行榜同步。')
                     .addFields(
                         { name: 'Steam 昵称', value: `\`${name}\``, inline: true },
-                        { name: '识别国家/地区', value: `${flagEmoji} \`${region}\``, inline: true },
+                        { name: '识别国家/地区', value: `\`${region}\``, inline: true },
                         { name: 'SteamID', value: `\`${steamId}\``, inline: false }
                     )
                     .setFooter({ text: '全球天梯排行榜已自动更新对应国旗' })
