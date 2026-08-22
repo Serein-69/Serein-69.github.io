@@ -301,7 +301,7 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
             // 【核心拦截】：如果不是在指定频道发送，直接打回
             if (ALLOWED_CHANNEL_ID && interaction.channelId !== ALLOWED_CHANNEL_ID) {
                 return interaction.reply({
-                    content: `⚠️ 请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
+                    content: `请前往专属绑定频道 <#${ALLOWED_CHANNEL_ID}> 使用此指令！`,
                     ephemeral: true
                 });
             }
@@ -326,19 +326,19 @@ if (DISCORD_BOT_TOKEN && DISCORD_CLIENT_ID) {
 
                 const embed = new EmbedBuilder()
                     .setColor(0x9333ea)
-                    .setTitle('🎉 账号绑定成功！')
+                    .setTitle('账号绑定成功！')
                     .setDescription('你的 Steam 账号已成功与全球天梯排行榜同步。')
                     .addFields(
-                        { name: '👤 Steam 昵称', value: `\`${name}\``, inline: true },
-                        { name: '🚩 识别国家/地区', value: `${flagEmoji} \`${region}\``, inline: true },
-                        { name: '🆔 SteamID', value: `\`${steamId}\``, inline: false }
+                        { name: ' Steam 昵称', value: `\`${name}\``, inline: true },
+                        { name: ' 识别国家/地区', value: `${flagEmoji} \`${region}\``, inline: true },
+                        { name: ' SteamID', value: `\`${steamId}\``, inline: false }
                     )
                     .setFooter({ text: '全球天梯排行榜已自动更新对应国旗' })
                     .setTimestamp();
 
                 await interaction.editReply({ embeds: [embed] });
             } else {
-                await interaction.editReply({ content: `❌ **绑定失败**: ${result.message}` });
+                await interaction.editReply({ content: `**绑定失败**: ${result.message}` });
             }
         }
     });
