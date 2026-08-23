@@ -80,9 +80,8 @@
 
         .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; }
         .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
-        
-        .flag-box { display: inline-flex; align-items: center; justify-content: center; width: 26px; }
-        .unbound-flag { color: #64748b; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+        .flag-tag { font-size: 1.3rem; display: inline-flex; align-items: center; }
+        .unbound-flag { color: #64748b; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
 
@@ -125,7 +124,7 @@
             padding: 3px; box-shadow: 0 0 25px rgba(168, 85, 247, 0.6);
         }
         .mvp-avatar-glow div { width: 100%; height: 100%; border-radius: 50%; background: #0c0e14; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: var(--gold); }
-        .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .mvp-tier-box { margin-bottom: 8px; }
         .mvp-score { font-size: 1.8rem; font-weight: 900; color: #ffffff; }
 
@@ -145,6 +144,8 @@
         <select class="lang-select" id="languageSelector" onchange="changeLanguage(this.value)">
             <option value="zh">简体中文 (ZH)</option>
             <option value="en">English (EN)</option>
+            <option value="ru">Русский (RU)</option>
+            <option value="tr">Türkçe (TR)</option>
         </select>
     </nav>
 
@@ -266,12 +267,31 @@
                 unbound_label: "未绑定", no_player: "未找到玩家",
                 pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
                 pg_search_result: "找到", pg_total: "全服共"
+            },
+            ru: {
+                hero_badge: "Глобальная рейтинговая система", hero_title_1: "CRAB GAME", hero_title_2: "ТАБЛИЦА ЛИДЕРОВ",
+                stat_players: "Игроков в рейтинге", stat_matches: "Всего матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация активна",
+                table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
+                th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "Очки MMR", th_wl: "П - П", th_winrate: "% Побед",
+                mvp_title: "👑 ТОП-1 Игрок", mvp_rating: "Рейтинг",
+                unbound_label: "Не привязан", no_player: "Игроки не найдены",
+                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
+                pg_search_result: "Найдено", pg_total: "всего"
+            },
+            tr: {
+                hero_badge: "Küresel Rekabet Sıralaması", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
+                stat_players: "Dereceli Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek MMR", stat_status: "Canlı Senkronizasyon",
+                table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
+                th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR Puanı", th_wl: "G - M", th_winrate: "Kazanma Oranı",
+                mvp_title: "👑 Şu Anki 1. Sıra", mvp_rating: "Küresel Puan",
+                unbound_label: "Bağlı Değil", no_player: "Oyuncu bulunamadı",
+                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
+                pg_search_result: "Bulunan", pg_total: "toplam"
             }
         };
 
         let currentLang = localStorage.getItem('crab_ranking_lang') || 'zh';
 
-        // 高清真实国旗图标渲染（100% 解决 Windows 浏览器显示字母 CN / AU 的问题）
         function getCountryFlagHtml(code) {
             const t = I18N[currentLang] || I18N.zh;
             if (!code || code.toUpperCase() === 'GLOBAL' || code.length !== 2) {
@@ -282,7 +302,7 @@
                          srcset="https://flagcdn.com/48x36/${lowerCode}.png 2x" 
                          width="22" height="16" 
                          alt="${code}" 
-                         style="border-radius:3px; vertical-align:middle; box-shadow:0 0 3px rgba(0,0,0,0.5); display:inline-block;" 
+                         style="border-radius:3px; vertical-align:middle; box-shadow:0 0 2px rgba(0,0,0,0.5);" 
                          onerror="this.outerHTML='🌐 ${t.unbound_label}'" />`;
         }
 
@@ -359,12 +379,6 @@
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
                 document.getElementById('mvpAvatar').innerText = (top1.name || "P").substring(0, 1).toUpperCase();
-            } else {
-                document.getElementById('statTopMMR').innerText = "---";
-                document.getElementById('mvpName').innerText = "No Data";
-                document.getElementById('mvpTierBox').innerHTML = "";
-                document.getElementById('mvpScore').innerText = "---";
-                document.getElementById('mvpAvatar').innerText = "👑";
             }
         }
 
@@ -401,7 +415,7 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="rank-num ${rankClass}">${rankIcon}</td>
-                    <td><div class="flag-box">${flagHtml}</div></td>
+                    <td>${flagHtml}</td>
                     <td>
                         <div class="player-cell">
                             <div class="player-avatar">${(p.name || "P").substring(0, 1).toUpperCase()}</div>
