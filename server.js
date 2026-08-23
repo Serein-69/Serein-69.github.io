@@ -7,6 +7,7 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
+const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
@@ -26,6 +27,25 @@ function cleanName(name) {
         .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
         .replace(/^["']|["']$/g, '')
         .trim() || "Player";
+}
+
+// 核心：通过玩家独立的 SteamID 去 Steam 官方拉取真实国家 (CN, US, RU...)
+async function fetchSteamProfile(steamId) {
+    if (!STEAM_API_KEY) return null;
+    try {
+        const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${steamId}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const player = data?.response?.players?.[0];
+        if (!player) return null;
+
+        return {
+            personaName: player.personaname || null,
+            countryCode: player.loccountrycode ? player.loccountrycode.toUpperCase() : 'GLOBAL'
+        };
+    } catch (e) {
+        return null;
+    }
 }
 
 let dataFolder = __dirname;
@@ -66,6 +86,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -88,16 +109,26 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-app.post('/api/mod/bind', (req, res) => {
+// 【游戏内 Mod 手动绑定接口】
+app.post('/api/mod/bind', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
 
     const cleanSteamId = String(req.body.steamId || "").trim();
-    let manualRegion = (req.body.region || "GLOBAL").trim().toUpperCase();
+    let manualRegion = (req.body.region || "").trim().toUpperCase();
     let playerName = cleanName(req.body.name);
 
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
         return res.status(400).json({ status: "error", message: "SteamID 无效" });
+    }
+
+    // 若没传国家，自动向 Steam 查
+    if (!manualRegion || manualRegion === 'GLOBAL') {
+        const steamInfo = await fetchSteamProfile(cleanSteamId);
+        manualRegion = steamInfo?.countryCode || 'GLOBAL';
+        if (playerName === 'Player' && steamInfo?.personaName) {
+            playerName = cleanName(steamInfo.personaName);
+        }
     }
 
     const sql = `
@@ -115,10 +146,10 @@ app.post('/api/mod/bind', (req, res) => {
     });
 });
 
+// 【核心】：自动按 SteamID 查国籍并入库
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
-    let region = (body.region || "").trim().toUpperCase();
     let score = null;
     let wins = null;
     let matches = null;
@@ -133,12 +164,20 @@ async function processReport(body) {
             if (k === 'CurrentElo' || k === 'Elo') score = parseInt(val);
             if (k === 'Wins') wins = parseInt(val);
             if (k === 'TotalMatches' || k === 'GamesPlayed') matches = parseInt(val);
-            if (k === 'Region' && !region) region = val.toUpperCase();
         }
     }
 
     if (!steamId || !/^\d+$/.test(steamId)) return;
-    if (!region || region === "") region = 'GLOBAL';
+
+    // 独立查询该玩家公开的 Steam 国籍
+    let region = 'GLOBAL';
+    const steamInfo = await fetchSteamProfile(steamId);
+    if (steamInfo) {
+        if (steamInfo.countryCode) region = steamInfo.countryCode;
+        if ((!name || name === 'Player' || name === 'Unknown') && steamInfo.personaName) {
+            name = cleanName(steamInfo.personaName);
+        }
+    }
 
     if (score === null) score = Math.max(0, 1000 + (parseInt(body.scoreChange) || 0));
     if (wins === null) wins = body.isWin ? 1 : 0;
@@ -149,7 +188,7 @@ async function processReport(body) {
         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
             name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
-            region = CASE WHEN excluded.region != 'GLOBAL' THEN excluded.region ELSE players.region END,
+            region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
             wins = ?,
             matches = ?,
             score = ?,
@@ -184,6 +223,7 @@ app.post('/api/score', async (req, res) => {
     res.json({ status: "success" });
 });
 
+// 管理员一键清空接口
 app.post('/api/admin/clear-all-data', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
