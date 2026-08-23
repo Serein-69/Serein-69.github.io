@@ -7,7 +7,6 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
-const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
@@ -27,24 +26,6 @@ function cleanName(name) {
         .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
         .replace(/^["']|["']$/g, '')
         .trim() || "Player";
-}
-
-async function fetchSteamProfile(steamId) {
-    if (!STEAM_API_KEY) return null;
-    try {
-        const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${steamId}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const player = data?.response?.players?.[0];
-        if (!player) return null;
-
-        return {
-            personaName: player.personaname || null,
-            countryCode: player.loccountrycode ? player.loccountrycode.toUpperCase() : 'GLOBAL'
-        };
-    } catch (e) {
-        return null;
-    }
 }
 
 let dataFolder = __dirname;
@@ -85,7 +66,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -108,51 +88,37 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 【游戏内 Mod 专属绑定接口】
-app.post('/api/mod/bind', async (req, res) => {
+app.post('/api/mod/bind', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
 
     const cleanSteamId = String(req.body.steamId || "").trim();
-    let manualRegion = (req.body.region || "").trim().toUpperCase();
+    let manualRegion = (req.body.region || "GLOBAL").trim().toUpperCase();
+    let playerName = cleanName(req.body.name);
 
     if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
         return res.status(400).json({ status: "error", message: "SteamID 无效" });
-    }
-
-    let finalCountry = manualRegion;
-    let playerName = cleanName(req.body.name);
-
-    if (!finalCountry || finalCountry === 'GLOBAL') {
-        const steamInfo = await fetchSteamProfile(cleanSteamId);
-        finalCountry = steamInfo?.countryCode || 'GLOBAL';
-        if (playerName === 'Player' && steamInfo?.personaName) {
-            playerName = cleanName(steamInfo.personaName);
-        }
     }
 
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
         VALUES (?, ?, ?, 0, 0, 1000, CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
-            region = ?,
+            name = CASE WHEN excluded.name != 'Player' THEN excluded.name ELSE players.name END,
+            region = excluded.region,
             updated_at = CURRENT_TIMESTAMP
     `;
 
-    db.run(sql, [cleanSteamId, playerName, finalCountry, finalCountry], function (err) {
+    db.run(sql, [cleanSteamId, playerName, manualRegion], function (err) {
         if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({
-            status: "success",
-            region: finalCountry,
-            message: `绑定成功！国籍设置为: ${finalCountry}`
-        });
+        res.json({ status: "success", region: manualRegion });
     });
 });
 
-// 处理战绩上传
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
+    let region = (body.region || "").trim().toUpperCase();
     let score = null;
     let wins = null;
     let matches = null;
@@ -164,13 +130,15 @@ async function processReport(body) {
             const [k, ...v] = parts[i].split(':');
             const val = v.join(':');
             if (k === 'Username' && (!name || name === 'Player')) name = cleanName(val);
-            if (k === 'CurrentElo') score = parseInt(val);
+            if (k === 'CurrentElo' || k === 'Elo') score = parseInt(val);
             if (k === 'Wins') wins = parseInt(val);
-            if (k === 'TotalMatches') matches = parseInt(val);
+            if (k === 'TotalMatches' || k === 'GamesPlayed') matches = parseInt(val);
+            if (k === 'Region' && !region) region = val.toUpperCase();
         }
     }
 
     if (!steamId || !/^\d+$/.test(steamId)) return;
+    if (!region || region === "") region = 'GLOBAL';
 
     if (score === null) score = Math.max(0, 1000 + (parseInt(body.scoreChange) || 0));
     if (wins === null) wins = body.isWin ? 1 : 0;
@@ -178,9 +146,10 @@ async function processReport(body) {
 
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, updated_at)
-        VALUES (?, ?, 'GLOBAL', ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
             name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
+            region = CASE WHEN excluded.region != 'GLOBAL' THEN excluded.region ELSE players.region END,
             wins = ?,
             matches = ?,
             score = ?,
@@ -188,7 +157,7 @@ async function processReport(body) {
     `;
 
     return new Promise(resolve => {
-        db.run(sql, [steamId, name, wins, matches, score, wins, matches, score], resolve);
+        db.run(sql, [steamId, name, region, wins, matches, score, wins, matches, score], resolve);
     });
 }
 
@@ -215,7 +184,6 @@ app.post('/api/score', async (req, res) => {
     res.json({ status: "success" });
 });
 
-// 管理员清空接口
 app.post('/api/admin/clear-all-data', (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
