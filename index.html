@@ -38,7 +38,7 @@
         }
         .lang-select:hover { border-color: var(--accent-pink); }
 
-        .container { max-width: 1320px; margin: 0 auto; padding: 30px 20px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 30px 20px; }
 
         .hero {
             border-radius: 16px; overflow: hidden;
@@ -59,9 +59,10 @@
         .stat-val { font-size: 1.3rem; font-weight: 800; }
         .stat-lbl { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
 
-        .main-grid { display: grid; grid-template-columns: 2.3fr 1fr; gap: 25px; margin-bottom: 40px; }
-        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; overflow-x: auto; }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        /* 拓宽表格区，缩小右侧栏比例 */
+        .main-grid { display: grid; grid-template-columns: 3.2fr 1fr; gap: 25px; margin-bottom: 40px; }
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; overflow-x: auto; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
         .card-title { font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
 
         .search-wrapper { position: relative; width: 220px; }
@@ -69,35 +70,32 @@
         .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted); }
 
         .ranking-table { width: 100%; border-collapse: collapse; text-align: left; }
-        .ranking-table th { padding: 12px 14px; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-weight: 700; white-space: nowrap; }
-        .ranking-table td { padding: 14px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; white-space: nowrap; }
+        .ranking-table th { padding: 10px 8px; font-size: 0.78rem; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-weight: 700; white-space: nowrap; }
+        .ranking-table td { padding: 12px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.88rem; vertical-align: middle; white-space: nowrap; }
         .ranking-table tr:hover td { background: var(--bg-card-hover); }
 
-        .rank-num { font-weight: 800; font-size: 0.95rem; width: 45px; text-align: center; }
+        .rank-num { font-weight: 800; font-size: 0.95rem; width: 40px; text-align: center; }
         .rank-1 { color: var(--gold); }
         .rank-2 { color: var(--silver); }
         .rank-3 { color: var(--bronze); }
 
-        /* 修复名字过长重叠：超长自动省略号并限制宽度 */
-        .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; max-width: 190px; }
-        .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
-        .player-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; display: inline-block; }
-        .unbound-flag { color: #64748b; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .player-cell { display: flex; align-items: center; gap: 8px; font-weight: 700; max-width: 170px; }
+        .player-avatar { width: 28px; height: 28px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
+        .player-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; display: inline-block; }
+        .unbound-flag { color: #64748b; font-size: 0.78rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
-        .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
-        .peak-badge { color: #c084fc; font-weight: 800; font-size: 0.9rem; }
+        .score-badge { font-weight: 900; color: #ffffff; font-size: 0.92rem; }
+        .peak-badge { color: #c084fc; font-weight: 800; font-size: 0.88rem; }
         
-        /* 修复火标和连胜换行 */
         .streak-badge {
-            display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-            background: rgba(236, 72, 153, 0.15); color: #ec4899; padding: 3px 8px; border-radius: 4px;
-            font-weight: 800; font-size: 0.8rem; border: 1px solid rgba(236, 72, 153, 0.3); white-space: nowrap;
+            display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+            background: rgba(236, 72, 153, 0.15); color: #ec4899; padding: 2px 6px; border-radius: 4px;
+            font-weight: 800; font-size: 0.78rem; border: 1px solid rgba(236, 72, 153, 0.3); white-space: nowrap;
         }
 
-        /* 修复段位标签换行与大写强制 */
         .tier-tag {
-            display: inline-block; padding: 4px 9px; border-radius: 4px; font-size: 0.78rem; font-weight: 800;
-            letter-spacing: 0.5px; white-space: nowrap; text-transform: none;
+            display: inline-block; padding: 3px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 800;
+            letter-spacing: 0.3px; white-space: nowrap; text-transform: none;
         }
         .tier-gm { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid #f43f5e; }
         .tier-master { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid #c084fc; }
@@ -109,14 +107,14 @@
 
         .pagination-container {
             display: flex; justify-content: space-between; align-items: center;
-            margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);
+            margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--border-color);
             flex-wrap: wrap; gap: 10px;
         }
         .pagination-info { color: var(--text-muted); font-size: 0.8rem; font-weight: 600; }
-        .pagination-controls { display: flex; gap: 6px; align-items: center; }
+        .pagination-controls { display: flex; gap: 5px; align-items: center; }
         .page-btn {
             background: #141722; color: var(--text-muted); border: 1px solid var(--border-color);
-            padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 700;
+            padding: 5px 10px; border-radius: 5px; font-size: 0.78rem; font-weight: 700;
             cursor: pointer; transition: all 0.2s; outline: none;
         }
         .page-btn:hover:not(:disabled) { background: #1f2333; color: #fff; border-color: var(--accent-pink); }
@@ -126,24 +124,24 @@
         .sidebar { display: flex; flex-direction: column; gap: 20px; }
         .mvp-card {
             background: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.25), transparent 70%), var(--bg-card);
-            border: 1px solid var(--border-color); border-radius: 14px; padding: 25px; text-align: center; position: relative;
+            border: 1px solid var(--border-color); border-radius: 14px; padding: 22px; text-align: center; position: relative;
         }
-        .mvp-badge-top { font-size: 0.75rem; font-weight: 800; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 15px; }
+        .mvp-badge-top { font-size: 0.75rem; font-weight: 800; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; }
         .mvp-avatar-glow {
-            width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 12px;
+            width: 76px; height: 76px; border-radius: 50%; margin: 0 auto 10px;
             background: linear-gradient(135deg, var(--primary), var(--accent-pink));
-            padding: 3px; box-shadow: 0 0 25px rgba(168, 85, 247, 0.6);
+            padding: 3px; box-shadow: 0 0 22px rgba(168, 85, 247, 0.6);
         }
-        .mvp-avatar-glow div { width: 100%; height: 100%; border-radius: 50%; background: #0c0e14; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: var(--gold); }
-        .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .mvp-tier-box { margin-bottom: 8px; }
-        .mvp-score { font-size: 1.8rem; font-weight: 900; color: #ffffff; }
-        .mvp-extra { display: flex; justify-content: center; gap: 15px; margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); }
+        .mvp-avatar-glow div { width: 100%; height: 100%; border-radius: 50%; background: #0c0e14; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; color: var(--gold); }
+        .mvp-name { font-size: 1.15rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .mvp-tier-box { margin-bottom: 6px; }
+        .mvp-score { font-size: 1.7rem; font-weight: 900; color: #ffffff; }
+        .mvp-extra { display: flex; justify-content: center; gap: 12px; margin-top: 10px; font-size: 0.78rem; color: var(--text-muted); }
 
-        footer { border-top: 1px solid var(--border-color); padding: 40px 0 20px; background: #07080a; }
+        footer { border-top: 1px solid var(--border-color); padding: 35px 0 20px; background: #07080a; }
         .copyright { text-align: center; color: #555; font-size: 0.75rem; }
 
-        @media (max-width: 900px) {
+        @media (max-width: 1024px) {
             .main-grid { grid-template-columns: 1fr; }
             .stats-bar { grid-template-columns: repeat(2, 1fr); }
         }
@@ -305,7 +303,6 @@
             }
         };
 
-        // 核心：全语种段位名称翻译库
         const TIER_NAMES = {
             zh: {
                 gm4: "宗师 IV", gm3: "宗师 III", gm2: "宗师 II", gm1: "宗师 I",
@@ -485,8 +482,8 @@
                     <td><span class="score-badge">${p.score.toLocaleString()}</span></td>
                     <td><span class="peak-badge">${peakElo.toLocaleString()}</span></td>
                     <td><span class="streak-badge">🔥 ${bestStreak}</span></td>
-                    <td style="color:var(--text-muted); font-size:0.85rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
-                    <td><span style="color:#10b981; font-weight:800;">${winRateFormatted}%</span></td>
+                    <td style="color:var(--text-muted); font-size:0.82rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
+                    <td><span style="color:#10b981; font-weight:800; font-size:0.92rem;">${winRateFormatted}%</span></td>
                 `;
                 tbody.appendChild(tr);
             });
