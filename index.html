@@ -38,7 +38,7 @@
         }
         .lang-select:hover { border-color: var(--accent-pink); }
 
-        .container { max-width: 1240px; margin: 0 auto; padding: 30px 20px; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 30px 20px; }
 
         .hero {
             border-radius: 16px; overflow: hidden;
@@ -59,7 +59,7 @@
         .stat-val { font-size: 1.3rem; font-weight: 800; }
         .stat-lbl { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
 
-        .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; margin-bottom: 40px; }
+        .main-grid { display: grid; grid-template-columns: 2.2fr 1fr; gap: 25px; margin-bottom: 40px; }
         .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
         .card-title { font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
@@ -73,17 +73,18 @@
         .ranking-table td { padding: 14px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; }
         .ranking-table tr:hover td { background: var(--bg-card-hover); }
 
-        .rank-num { font-weight: 800; font-size: 0.95rem; width: 55px; }
+        .rank-num { font-weight: 800; font-size: 0.95rem; width: 45px; }
         .rank-1 { color: var(--gold); }
         .rank-2 { color: var(--silver); }
         .rank-3 { color: var(--bronze); }
 
-        .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+        .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; max-width: 180px; }
         .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
-        .flag-tag { font-size: 1.3rem; display: inline-flex; align-items: center; }
         .unbound-flag { color: #64748b; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
+        .peak-badge { color: #a855f7; font-weight: 800; font-size: 0.9rem; }
+        .streak-badge { background: rgba(236, 72, 153, 0.15); color: #ec4899; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; border: 1px solid rgba(236, 72, 153, 0.3); }
 
         .tier-tag {
             display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
@@ -127,6 +128,7 @@
         .mvp-name { font-size: 1.25rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .mvp-tier-box { margin-bottom: 8px; }
         .mvp-score { font-size: 1.8rem; font-weight: 900; color: #ffffff; }
+        .mvp-extra { display: flex; justify-content: center; gap: 15px; margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); }
 
         footer { border-top: 1px solid var(--border-color); padding: 40px 0 20px; background: #07080a; }
         .copyright { text-align: center; color: #555; font-size: 0.75rem; }
@@ -206,6 +208,8 @@
                             <th data-i18n="th_player">Player</th>
                             <th data-i18n="th_tier">Tier Rank</th>
                             <th data-i18n="th_mmr">MMR Score</th>
+                            <th data-i18n="th_peak">Peak MMR</th>
+                            <th data-i18n="th_streak">Streak</th>
                             <th data-i18n="th_wl">W - L</th>
                             <th data-i18n="th_winrate">Win Rate</th>
                         </tr>
@@ -229,6 +233,7 @@
                     <div class="mvp-tier-box" id="mvpTierBox"></div>
                     <div class="mvp-score" id="mvpScore">...</div>
                     <div class="mvp-score-sub" data-i18n="mvp_rating">Rating</div>
+                    <div class="mvp-extra" id="mvpExtra"></div>
                 </div>
             </div>
         </div>
@@ -252,7 +257,7 @@
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
-                th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_wl: "W - L", th_winrate: "Win Rate",
+                th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_peak: "Peak MMR", th_streak: "Streak", th_wl: "W - L", th_winrate: "Win Rate",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
                 unbound_label: "Unbound", no_player: "No players found",
                 pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
@@ -262,7 +267,7 @@
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
-                th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "天梯评分", th_wl: "胜 - 负", th_winrate: "胜率",
+                th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "当前评分", th_peak: "历史最高分", th_streak: "最高连胜", th_wl: "胜 - 负", th_winrate: "胜率",
                 mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
                 unbound_label: "未绑定", no_player: "未找到玩家",
                 pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
@@ -272,7 +277,7 @@
                 hero_badge: "Глобальная рейтинговая система", hero_title_1: "CRAB GAME", hero_title_2: "ТАБЛИЦА ЛИДЕРОВ",
                 stat_players: "Игроков в рейтинге", stat_matches: "Всего матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация активна",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
-                th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "Очки MMR", th_wl: "П - П", th_winrate: "% Побед",
+                th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "Очки MMR", th_peak: "Пик MMR", th_streak: "Серия", th_wl: "П - П", th_winrate: "% Побед",
                 mvp_title: "👑 ТОП-1 Игрок", mvp_rating: "Рейтинг",
                 unbound_label: "Не привязан", no_player: "Игроки не найдены",
                 pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
@@ -282,7 +287,7 @@
                 hero_badge: "Küresel Rekabet Sıralaması", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
                 stat_players: "Dereceli Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek MMR", stat_status: "Canlı Senkronizasyon",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
-                th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR Puanı", th_wl: "G - M", th_winrate: "Kazanma Oranı",
+                th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR Puanı", th_peak: "Zirve MMR", th_streak: "Seri", th_wl: "G - M", th_winrate: "Kazanma Oranı",
                 mvp_title: "👑 Şu Anki 1. Sıra", mvp_rating: "Küresel Puan",
                 unbound_label: "Bağlı Değil", no_player: "Oyuncu bulunamadı",
                 pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
@@ -373,12 +378,13 @@
 
             if (cachedPlayers.length > 0) {
                 const top1 = cachedPlayers[0];
-                document.getElementById('statTopMMR').innerText = top1.score.toLocaleString();
+                document.getElementById('statTopMMR').innerText = (top1.peak_score || top1.score).toLocaleString();
                 const top1Tier = getTierInfo(top1.score);
                 document.getElementById('mvpName').innerHTML = `${getCountryFlagHtml(top1.region)} <span>${top1.name}</span>`;
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
                 document.getElementById('mvpAvatar').innerText = (top1.name || "P").substring(0, 1).toUpperCase();
+                document.getElementById('mvpExtra').innerHTML = `<span>Peak: <b>${top1.peak_score || top1.score}</b></span> <span>Streak: <b>🔥${top1.best_streak || 0}</b></span>`;
             }
         }
 
@@ -391,7 +397,7 @@
             tbody.innerHTML = "";
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666; padding:30px;">${t.no_player}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#666; padding:30px;">${t.no_player}</td></tr>`;
                 renderPagination(0, 0, trimmedQuery);
                 return;
             }
@@ -411,6 +417,8 @@
                 const losses = Math.max(0, (p.matches || 0) - (p.wins || 0));
                 const winRateFormatted = (parseFloat(p.winRate) || 0).toFixed(1);
                 const flagHtml = getCountryFlagHtml(p.region);
+                const peakElo = p.peak_score || p.score;
+                const bestStreak = p.best_streak || 0;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -424,6 +432,8 @@
                     </td>
                     <td><span class="tier-tag ${tier.class}">${tier.name}</span></td>
                     <td><span class="score-badge">${p.score.toLocaleString()}</span></td>
+                    <td><span class="peak-badge">${peakElo.toLocaleString()}</span></td>
+                    <td><span class="streak-badge">🔥 ${bestStreak}</span></td>
                     <td style="color:var(--text-muted); font-size:0.85rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
                     <td><span style="color:#10b981; font-weight:800;">${winRateFormatted}%</span></td>
                 `;
