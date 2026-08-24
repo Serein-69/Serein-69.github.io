@@ -20,7 +20,7 @@
             --text-muted: #94a3b8;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
         body { background-color: var(--bg-main); color: var(--text-main); line-height: 1.5; overflow-x: hidden; }
 
         .navbar {
@@ -38,7 +38,7 @@
         }
         .lang-select:hover { border-color: var(--accent-pink); }
 
-        .container { max-width: 1280px; margin: 0 auto; padding: 30px 20px; }
+        .container { max-width: 1320px; margin: 0 auto; padding: 30px 20px; }
 
         .hero {
             border-radius: 16px; overflow: hidden;
@@ -59,8 +59,8 @@
         .stat-val { font-size: 1.3rem; font-weight: 800; }
         .stat-lbl { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
 
-        .main-grid { display: grid; grid-template-columns: 2.2fr 1fr; gap: 25px; margin-bottom: 40px; }
-        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; }
+        .main-grid { display: grid; grid-template-columns: 2.3fr 1fr; gap: 25px; margin-bottom: 40px; }
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; overflow-x: auto; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
         .card-title { font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
 
@@ -69,25 +69,35 @@
         .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted); }
 
         .ranking-table { width: 100%; border-collapse: collapse; text-align: left; }
-        .ranking-table th { padding: 12px 10px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-weight: 700; }
-        .ranking-table td { padding: 14px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; }
+        .ranking-table th { padding: 12px 14px; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-weight: 700; white-space: nowrap; }
+        .ranking-table td { padding: 14px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); font-size: 0.9rem; vertical-align: middle; white-space: nowrap; }
         .ranking-table tr:hover td { background: var(--bg-card-hover); }
 
-        .rank-num { font-weight: 800; font-size: 0.95rem; width: 45px; }
+        .rank-num { font-weight: 800; font-size: 0.95rem; width: 45px; text-align: center; }
         .rank-1 { color: var(--gold); }
         .rank-2 { color: var(--silver); }
         .rank-3 { color: var(--bronze); }
 
-        .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; max-width: 180px; }
+        /* 修复名字过长重叠：超长自动省略号并限制宽度 */
+        .player-cell { display: flex; align-items: center; gap: 10px; font-weight: 700; max-width: 190px; }
         .player-avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
+        .player-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; display: inline-block; }
         .unbound-flag { color: #64748b; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.95rem; }
-        .peak-badge { color: #a855f7; font-weight: 800; font-size: 0.9rem; }
-        .streak-badge { background: rgba(236, 72, 153, 0.15); color: #ec4899; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; border: 1px solid rgba(236, 72, 153, 0.3); }
+        .peak-badge { color: #c084fc; font-weight: 800; font-size: 0.9rem; }
+        
+        /* 修复火标和连胜换行 */
+        .streak-badge {
+            display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+            background: rgba(236, 72, 153, 0.15); color: #ec4899; padding: 3px 8px; border-radius: 4px;
+            font-weight: 800; font-size: 0.8rem; border: 1px solid rgba(236, 72, 153, 0.3); white-space: nowrap;
+        }
 
+        /* 修复段位标签换行与大写强制 */
         .tier-tag {
-            display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+            display: inline-block; padding: 4px 9px; border-radius: 4px; font-size: 0.78rem; font-weight: 800;
+            letter-spacing: 0.5px; white-space: nowrap; text-transform: none;
         }
         .tier-gm { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid #f43f5e; }
         .tier-master { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid #c084fc; }
@@ -257,7 +267,7 @@
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
-                th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR Score", th_peak: "Peak MMR", th_streak: "Streak", th_wl: "W - L", th_winrate: "Win Rate",
+                th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR", th_peak: "Peak MMR", th_streak: "Streak", th_wl: "W - L", th_winrate: "Win Rate",
                 mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
                 unbound_label: "Unbound", no_player: "No players found",
                 pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
@@ -267,7 +277,7 @@
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
-                th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "当前评分", th_peak: "历史最高分", th_streak: "最高连胜", th_wl: "胜 - 负", th_winrate: "胜率",
+                th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "当前分", th_peak: "历史最高分", th_streak: "最高连胜", th_wl: "胜 - 负", th_winrate: "胜率",
                 mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
                 unbound_label: "未绑定", no_player: "未找到玩家",
                 pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
@@ -277,7 +287,7 @@
                 hero_badge: "Глобальная рейтинговая система", hero_title_1: "CRAB GAME", hero_title_2: "ТАБЛИЦА ЛИДЕРОВ",
                 stat_players: "Игроков в рейтинге", stat_matches: "Всего матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация активна",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
-                th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "Очки MMR", th_peak: "Пик MMR", th_streak: "Серия", th_wl: "П - П", th_winrate: "% Побед",
+                th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR", th_peak: "Пик MMR", th_streak: "Серия", th_wl: "П - П", th_winrate: "% Побед",
                 mvp_title: "👑 ТОП-1 Игрок", mvp_rating: "Рейтинг",
                 unbound_label: "Не привязан", no_player: "Игроки не найдены",
                 pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
@@ -287,11 +297,51 @@
                 hero_badge: "Küresel Rekabet Sıralaması", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
                 stat_players: "Dereceli Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek MMR", stat_status: "Canlı Senkronizasyon",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
-                th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR Puanı", th_peak: "Zirve MMR", th_streak: "Seri", th_wl: "G - M", th_winrate: "Kazanma Oranı",
+                th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR", th_peak: "Zirve MMR", th_streak: "Seri", th_wl: "G - M", th_winrate: "Kazanma Oranı",
                 mvp_title: "👑 Şu Anki 1. Sıra", mvp_rating: "Küresel Puan",
                 unbound_label: "Bağlı Değil", no_player: "Oyuncu bulunamadı",
                 pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
                 pg_search_result: "Bulunan", pg_total: "toplam"
+            }
+        };
+
+        // 核心：全语种段位名称翻译库
+        const TIER_NAMES = {
+            zh: {
+                gm4: "宗师 IV", gm3: "宗师 III", gm2: "宗师 II", gm1: "宗师 I",
+                m4: "大师 IV", m3: "大师 III", m2: "大师 II", m1: "大师 I",
+                d2: "钻石 II", d1: "钻石 I",
+                p4: "铂金 IV", p3: "铂金 III", p2: "铂金 II", p1: "铂金 I",
+                g4: "黄金 IV", g3: "黄金 III", g2: "黄金 II", g1: "黄金 I",
+                s2: "白银 II", s1: "白银 I",
+                b: "青铜"
+            },
+            en: {
+                gm4: "GM IV", gm3: "GM III", gm2: "GM II", gm1: "GM I",
+                m4: "Master IV", m3: "Master III", m2: "Master II", m1: "Master I",
+                d2: "Diamond II", d1: "Diamond I",
+                p4: "Platinum IV", p3: "Platinum III", p2: "Platinum II", p1: "Platinum I",
+                g4: "Gold IV", g3: "Gold III", g2: "Gold II", g1: "Gold I",
+                s2: "Silver II", s1: "Silver I",
+                b: "Bronze"
+            },
+            ru: {
+                gm4: "Грандмастер IV", gm3: "Грандмастер III", gm2: "Грандмастер II", gm1: "Грандмастер I",
+                m4: "Мастер IV", m3: "Мастер III", m2: "Мастер II", m1: "Мастер I",
+                d2: "Алмаз II", d1: "Алмаз I",
+                p4: "Платина IV", p3: "Платина III", p2: "Платина II", p1: "Платина I",
+                g4: "Золото IV", g3: "Золото III", g2: "Золото II", g1: "Золото I",
+                s2: "Серебро II", s1: "Серебро I",
+                b: "Бронза"
+            },
+            tr: {
+                gm4: "Büyük Usta IV", gm3: "Büyük Usta III", gm2: "Büyük Usta II", gm1: "Büyük Usta I",
+                m4: "Usta IV", m3: "Usta III", m2: "Usta II", m1: "Usta I",
+                d2: "Elmas II", d1: "Elmas I",
+                p4: "Platin IV", p3: "Platin III", p2: "Platin II", p1: "Platin I",
+                g4: "Altın IV", g3: "Altın III", g2: "Altın II", g1: "Altın I",
+                s2: "Gümüş II", s1: "Gümüş I",
+                b: "Bronz"
             }
         };
 
@@ -312,27 +362,28 @@
         }
 
         function getTierInfo(score) {
-            if (score >= 1400) return { name: "GM IV", class: "tier-gm" };
-            if (score >= 1390) return { name: "GM III", class: "tier-gm" };
-            if (score >= 1375) return { name: "GM II", class: "tier-gm" };
-            if (score >= 1350) return { name: "GM I", class: "tier-gm" };
-            if (score >= 1330) return { name: "Master IV", class: "tier-master" };
-            if (score >= 1320) return { name: "Master III", class: "tier-master" };
-            if (score >= 1310) return { name: "Master II", class: "tier-master" };
-            if (score >= 1300) return { name: "Master I", class: "tier-master" };
-            if (score >= 1260) return { name: "Diamond II", class: "tier-diamond" };
-            if (score >= 1245) return { name: "Diamond I", class: "tier-diamond" };
-            if (score >= 1230) return { name: "Platinum IV", class: "tier-platinum" };
-            if (score >= 1210) return { name: "Platinum III", class: "tier-platinum" };
-            if (score >= 1190) return { name: "Platinum II", class: "tier-platinum" };
-            if (score >= 1170) return { name: "Platinum I", class: "tier-platinum" };
-            if (score >= 1150) return { name: "Gold IV", class: "tier-gold" };
-            if (score >= 1125) return { name: "Gold III", class: "tier-gold" };
-            if (score >= 1110) return { name: "Gold II", class: "tier-gold" };
-            if (score >= 1100) return { name: "Gold I", class: "tier-gold" };
-            if (score >= 1050) return { name: "Silver II", class: "tier-silver" };
-            if (score >= 1000) return { name: "Silver I", class: "tier-silver" };
-            return { name: "Bronze", class: "tier-bronze" };
+            const dict = TIER_NAMES[currentLang] || TIER_NAMES.zh;
+            if (score >= 1400) return { name: dict.gm4, class: "tier-gm" };
+            if (score >= 1390) return { name: dict.gm3, class: "tier-gm" };
+            if (score >= 1375) return { name: dict.gm2, class: "tier-gm" };
+            if (score >= 1350) return { name: dict.gm1, class: "tier-gm" };
+            if (score >= 1330) return { name: dict.m4, class: "tier-master" };
+            if (score >= 1320) return { name: dict.m3, class: "tier-master" };
+            if (score >= 1310) return { name: dict.m2, class: "tier-master" };
+            if (score >= 1300) return { name: dict.m1, class: "tier-master" };
+            if (score >= 1260) return { name: dict.d2, class: "tier-diamond" };
+            if (score >= 1245) return { name: dict.d1, class: "tier-diamond" };
+            if (score >= 1230) return { name: dict.p4, class: "tier-platinum" };
+            if (score >= 1210) return { name: dict.p3, class: "tier-platinum" };
+            if (score >= 1190) return { name: dict.p2, class: "tier-platinum" };
+            if (score >= 1170) return { name: dict.p1, class: "tier-platinum" };
+            if (score >= 1150) return { name: dict.g4, class: "tier-gold" };
+            if (score >= 1125) return { name: dict.g3, class: "tier-gold" };
+            if (score >= 1110) return { name: dict.g2, class: "tier-gold" };
+            if (score >= 1100) return { name: dict.g1, class: "tier-gold" };
+            if (score >= 1050) return { name: dict.s2, class: "tier-silver" };
+            if (score >= 1000) return { name: dict.s1, class: "tier-silver" };
+            return { name: dict.b, class: "tier-bronze" };
         }
 
         function changeLanguage(lang) {
@@ -425,9 +476,9 @@
                     <td class="rank-num ${rankClass}">${rankIcon}</td>
                     <td>${flagHtml}</td>
                     <td>
-                        <div class="player-cell">
+                        <div class="player-cell" title="${p.name}">
                             <div class="player-avatar">${(p.name || "P").substring(0, 1).toUpperCase()}</div>
-                            <span>${p.name}</span>
+                            <span class="player-name-text">${p.name}</span>
                         </div>
                     </td>
                     <td><span class="tier-tag ${tier.class}">${tier.name}</span></td>
