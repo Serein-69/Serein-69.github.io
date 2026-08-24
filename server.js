@@ -120,6 +120,21 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
+// 🔍【核心新增】：单玩家全网实时云端数据查询接口（供服务器进服同步）
+app.get('/api/player/:steamId', (req, res) => {
+    const steamId = String(req.params.steamId || '').trim();
+    if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
+
+    db.get(
+        "SELECT player_id, name, region, wins, matches, score, COALESCE(peak_score, score) as peak_score, COALESCE(best_streak, 0) as best_streak FROM players WHERE player_id = ?",
+        [steamId],
+        (err, row) => {
+            if (err || !row) return res.status(404).json({ status: "not_found" });
+            res.json({ status: "success", data: row });
+        }
+    );
+});
+
 // 手动绑定国籍接口
 app.post('/api/mod/bind', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
@@ -244,13 +259,13 @@ app.post('/api/score', async (req, res) => {
     res.json({ status: "success" });
 });
 
-app.post('/api/admin/clear-all-data', (req, res) => {
-    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+app.all('/api/admin/clear-all-data', (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey || req.query.key;
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).send("Forbidden: API Key 错误");
 
     db.run("DELETE FROM players", (err) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", message: "数据库已彻底清空！" });
+        if (err) return res.status(500).send("清空失败: " + err.message);
+        res.send("<h1>✅ 数据库已彻底清空！</h1><p><a href='/'>返回排行榜</a></p>");
     });
 });
 
