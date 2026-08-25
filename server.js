@@ -80,21 +80,19 @@ db.serialize(() => {
         )
     `);
 
-    // 自动平滑升级已有数据库表结构
     db.run(`ALTER TABLE players ADD COLUMN peak_score INTEGER DEFAULT 1000;`, () => {});
     db.run(`ALTER TABLE players ADD COLUMN best_streak INTEGER DEFAULT 0;`, () => {});
     db.run(`ALTER TABLE players ADD COLUMN current_streak INTEGER DEFAULT 0;`, () => {});
 
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已就绪（支持历史最高分与连胜统计）！");
+    console.log("[DB] 数据库已就绪（已启用防低版本覆盖合并保护）！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表查询接口（输出最高分和连胜）
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -120,7 +118,6 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 🔍【核心新增】：单玩家全网实时云端数据查询接口（供服务器进服同步）
 app.get('/api/player/:steamId', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -160,7 +157,7 @@ app.post('/api/mod/bind', async (req, res) => {
         INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
         VALUES (?, ?, ?, 0, 0, 1000, 1000, 0, 0, CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
-            name = CASE WHEN excluded.name != 'Player' THEN excluded.name ELSE players.name END,
+            name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
             region = excluded.region,
             updated_at = CURRENT_TIMESTAMP
     `;
@@ -171,7 +168,6 @@ app.post('/api/mod/bind', async (req, res) => {
     });
 });
 
-// 核心战绩解析入库（提取 PeakElo, BestWinStreak, CurrentWinStreak）
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -222,10 +218,20 @@ async function processReport(body) {
         ON CONFLICT(player_id) DO UPDATE SET
             name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
             region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
-            wins = excluded.wins,
-            matches = excluded.matches,
-            score = excluded.score,
-            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.peak_score, excluded.score),
+            
+            -- 当前分：如果上传的数据场次更多或分数更高，才更新当前分，否则保留数据库里更高的数据
+            score = CASE 
+                WHEN excluded.matches >= players.matches THEN excluded.score 
+                WHEN excluded.score > players.score THEN excluded.score
+                ELSE players.score 
+            END,
+
+            -- 胜场和总场次：必须取最大值，坚决不回退！
+            wins = MAX(players.wins, excluded.wins),
+            matches = MAX(players.matches, excluded.matches),
+
+            -- 历史最高分和最高连胜：始终保留最大峰值
+            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.peak_score, excluded.score, players.score),
             best_streak = MAX(COALESCE(players.best_streak, 0), excluded.best_streak),
             current_streak = excluded.current_streak,
             updated_at = CURRENT_TIMESTAMP
