@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
+// 内存中维护一个极轻量的数据版本时间戳
 let lastDbUpdateTime = Date.now();
 
 app.use(cors());
@@ -88,7 +89,7 @@ db.serialize(() => {
 
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已就绪（支持版本比对与全自动远程分发）！");
+    console.log("[DB] 数据库已就绪（精准全网排名系统已启用）！");
 });
 
 app.get('/', (req, res) => {
@@ -157,28 +158,32 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
 
-    db.get("SELECT score, wins, matches, peak_score, best_streak FROM players WHERE player_id = ?", [steamId], (err, player) => {
-        if (err || !player) return res.status(404).json({ status: "not_found" });
+    db.get("SELECT player_id, score, wins, matches, peak_score, best_streak FROM players WHERE player_id = ?", [steamId], (err, target) => {
+        if (err || !target) return res.status(404).json({ status: "not_found" });
 
-        db.get(
-            "SELECT COUNT(*) as rank_count FROM players WHERE score > ? OR (score = ? AND wins > ?)", 
-            [player.score, player.score, player.wins], 
-            (err, rankResult) => {
-                if (err) return res.status(500).json({ status: "error", message: err.message });
-                const globalRank = (rankResult?.rank_count || 0) + 1;
-                res.json({
-                    status: "success",
-                    data: {
-                        rank: globalRank,
-                        score: player.score,
-                        peakScore: player.peak_score || player.score,
-                        wins: player.wins,
-                        matches: player.matches,
-                        bestStreak: player.best_streak || 0
-                    }
-                });
-            }
-        );
+        const countSql = `
+            SELECT COUNT(*) as rank_count 
+            FROM players 
+            WHERE score > ? 
+               OR (score = ? AND wins > ?)
+               OR (score = ? AND wins = ? AND id < (SELECT id FROM players WHERE player_id = ?))
+        `;
+
+        db.get(countSql, [target.score, target.score, target.wins, target.score, target.wins, steamId], (err, rankResult) => {
+            if (err) return res.status(500).json({ status: "error", message: err.message });
+            const globalRank = (rankResult?.rank_count || 0) + 1;
+            res.json({
+                status: "success",
+                data: {
+                    rank: globalRank,
+                    score: target.score,
+                    peakScore: target.peak_score || target.score,
+                    wins: target.wins,
+                    matches: target.matches,
+                    bestStreak: target.best_streak || 0
+                }
+            });
+        });
     });
 });
 
