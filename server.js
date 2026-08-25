@@ -17,18 +17,15 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.text({ limit: '100mb' }));
 app.use(express.static(__dirname));
 
+// 🛡️ 智能清洗名字（只移除 HTML/富文本标签，完美保留玩家的特殊符号、标点与 Emoji）
 function cleanName(name) {
     if (!name) return "Player";
-    return String(name)
-        .replace(/<color=[^>]*>/gi, '')
-        .replace(/<\/color>/gi, '')
-        .replace(/<[^>]*>/g, '')
-        .replace(/\[[0-9a-fA-F]{6}\]/g, '')
-        .replace(/\[\^[0-9]\]/g, '')
-        .replace(/<#[\da-fA-F]+>/g, '')
-        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
-        .replace(/^["']|["']$/g, '')
-        .trim() || "Player";
+    let str = String(name)
+        .replace(/<[^>]*>/g, '')              // 移除 HTML/Unity 富文本标签
+        .replace(/\[[0-9a-fA-F]{6}\]/g, '')   // 移除颜色十六进制标签
+        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '') // 移除不可见零宽字符
+        .trim();
+    return str || "Player";
 }
 
 async function fetchSteamProfile(steamId) {
@@ -88,7 +85,7 @@ db.serialize(() => {
 
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已就绪（ROW_NUMBER 精准排名算法已装载）！");
+    console.log("[DB] 数据库已就绪（特殊字符完美解析支持）！");
 });
 
 app.get('/', (req, res) => {
@@ -106,7 +103,8 @@ app.get('/api/leaderboard/export', (req, res) => {
         let lines = [];
         for (let p of (rows || [])) {
             let losses = Math.max(0, p.matches - p.wins);
-            let line = `${p.player_id}|Username:${p.name}|CurrentElo:${p.score}|PeakElo:${p.peak_score || p.score}|TotalMatches:${p.matches}|Wins:${p.wins}|Losses:${losses}|BestWinStreak:${p.best_streak || 0}|CurrentWinStreak:${p.current_streak || 0}`;
+            let safeName = String(p.name).replace(/\|/g, ' ');
+            let line = `${p.player_id}|Username:${safeName}|CurrentElo:${p.score}|PeakElo:${p.peak_score || p.score}|TotalMatches:${p.matches}|Wins:${p.wins}|Losses:${losses}|BestWinStreak:${p.best_streak || 0}|CurrentWinStreak:${p.current_streak || 0}`;
             lines.push(line);
         }
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -236,19 +234,39 @@ async function processReport(body) {
     let currentStreak = 0;
 
     if (body.rawLine && typeof body.rawLine === 'string') {
-        const parts = body.rawLine.split('|');
-        if (parts.length > 0 && /^\d+$/.test(parts[0])) steamId = parts[0];
-        for (let i = 1; i < parts.length; i++) {
-            const [k, ...v] = parts[i].split(':');
-            const val = v.join(':');
-            if (k === 'Username' && (!name || name === 'Player')) name = cleanName(val);
-            if (k === 'CurrentElo' || k === 'Elo') score = parseInt(val);
-            if (k === 'PeakElo') peakScore = parseInt(val);
-            if (k === 'Wins') wins = parseInt(val);
-            if (k === 'TotalMatches' || k === 'GamesPlayed') matches = parseInt(val);
-            if (k === 'BestWinStreak') bestStreak = parseInt(val) || 0;
-            if (k === 'CurrentWinStreak') currentStreak = parseInt(val) || 0;
+        const line = body.rawLine.trim();
+        const firstPipe = line.indexOf('|');
+        if (firstPipe > 0) {
+            const possibleId = line.substring(0, firstPipe).trim();
+            if (/^\d{17}$/.test(possibleId)) steamId = possibleId;
         }
+
+        const extractField = (key) => {
+            const reg = new RegExp(`(?:\\||^)${key}:(.*?)(?=\\|[A-Za-z]+:|$)`);
+            const m = line.match(reg);
+            return m ? m[1].trim() : null;
+        };
+
+        const uName = extractField('Username');
+        if (uName && (!name || name === 'Player')) name = cleanName(uName);
+
+        const eloVal = extractField('CurrentElo') || extractField('Elo');
+        if (eloVal) score = parseInt(eloVal);
+
+        const peakVal = extractField('PeakElo');
+        if (peakVal) peakScore = parseInt(peakVal);
+
+        const winsVal = extractField('Wins');
+        if (winsVal) wins = parseInt(winsVal);
+
+        const matchesVal = extractField('TotalMatches') || extractField('GamesPlayed');
+        if (matchesVal) matches = parseInt(matchesVal);
+
+        const bestStrVal = extractField('BestWinStreak');
+        if (bestStrVal) bestStreak = parseInt(bestStrVal) || 0;
+
+        const curStrVal = extractField('CurrentWinStreak');
+        if (curStrVal) currentStreak = parseInt(curStrVal) || 0;
     }
 
     if (!steamId || !/^\d+$/.test(steamId)) return;
