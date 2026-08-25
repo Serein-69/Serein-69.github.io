@@ -160,9 +160,8 @@
         .mvp-extra { display: flex; justify-content: center; gap: 12px; margin-top: 10px; font-size: 0.78rem; color: var(--text-muted); }
 
         footer { border-top: 1px solid var(--border-color); padding: 35px 0 20px; background: #07080a; }
-        .footer-content { display: flex; justify-content: space-between; align-items: center; max-width: 1400px; margin: 0 auto; padding: 0 20px; flex-wrap: wrap; gap: 15px; }
-        .copyright { color: #666; font-size: 0.8rem; }
-        .footer-author { color: #a855f7; font-weight: 700; font-size: 0.8rem; }
+        .footer-content { display: flex; justify-content: center; align-items: center; max-width: 1400px; margin: 0 auto; padding: 0 20px; flex-wrap: wrap; gap: 15px; }
+        .copyright { color: #666; font-size: 0.8rem; text-align: center; }
 
         @media (max-width: 1024px) {
             .main-grid { grid-template-columns: 1fr; }
@@ -289,9 +288,6 @@
             <div class="copyright">
                 © 2024-2026 Crab Game Ranking System. All rights reserved.
             </div>
-            <div class="footer-author" data-i18n="footer_credits">
-                Crafted & Maintained by Serein & Albion
-            </div>
         </div>
     </footer>
 
@@ -305,7 +301,7 @@
         const I18N = {
             en: {
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
-                author_badge: "Crafted by Serein & Albion", footer_credits: "Crafted & Maintained by Serein & Albion",
+                author_badge: "Crafted by Serein & Albion",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
                 th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR", th_peak: "Peak MMR", th_streak: "Streak", th_wl: "W - L", th_winrate: "Win Rate",
@@ -316,7 +312,7 @@
             },
             zh: {
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
-                author_badge: "由 Serein & Albion 联合制作", footer_credits: "系统开发与运营维护：Serein & Albion",
+                author_badge: "由 Serein & Albion 联合制作",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
                 th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "当前分", th_peak: "历史最高分", th_streak: "最高连胜", th_wl: "胜 - 负", th_winrate: "胜率",
@@ -327,7 +323,7 @@
             },
             ru: {
                 hero_badge: "Глобальная рейтинговая система", hero_title_1: "CRAB GAME", hero_title_2: "ТАБЛИЦА ЛИДЕРОВ",
-                author_badge: "Создано Serein и Albion", footer_credits: "Разработано Serein и Albion",
+                author_badge: "Создано Serein и Albion",
                 stat_players: "Игроков в рейтинге", stat_matches: "Всего матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация активна",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
                 th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR", th_peak: "Пик MMR", th_streak: "Серия", th_wl: "П - П", th_winrate: "% Побед",
@@ -338,7 +334,7 @@
             },
             tr: {
                 hero_badge: "Küresel Rekabet Sıralaması", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
-                author_badge: "Serein & Albion Tarafından Geliştirildi", footer_credits: "Serein & Albion Tarafından Geliştirildi",
+                author_badge: "Serein & Albion Tarafından Geliştirildi",
                 stat_players: "Dereceli Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek MMR", stat_status: "Canlı Senkronizasyon",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
                 th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR", th_peak: "Zirve MMR", th_streak: "Seri", th_wl: "G - M", th_winrate: "Kazanma Oranı",
