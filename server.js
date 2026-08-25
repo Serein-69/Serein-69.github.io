@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
-// 内存中维护一个极轻量的数据版本时间戳
 let lastDbUpdateTime = Date.now();
 
 app.use(cors());
@@ -96,12 +95,10 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ⚡【极轻量版本检测接口】：只有几个字节，0 性能开销
 app.get('/api/leaderboard/version', (req, res) => {
     res.json({ status: "success", version: lastDbUpdateTime });
 });
 
-// 📦【远程全量导出接口】：供服务器后台静默同步
 app.get('/api/leaderboard/export', (req, res) => {
     db.all("SELECT player_id, name, score, peak_score, wins, matches, best_streak, current_streak FROM players ORDER BY score DESC, wins DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
@@ -117,7 +114,6 @@ app.get('/api/leaderboard/export', (req, res) => {
     });
 });
 
-// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -143,7 +139,6 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 🔍 单玩家基础数据查询接口
 app.get('/api/player/:steamId', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -158,7 +153,6 @@ app.get('/api/player/:steamId', (req, res) => {
     );
 });
 
-// 🏆 单玩家全网总排名计算接口
 app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -188,7 +182,6 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     });
 });
 
-// 手动绑定国籍接口
 app.post('/api/mod/bind', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -225,7 +218,6 @@ app.post('/api/mod/bind', async (req, res) => {
     });
 });
 
-// 核心多服务器数据合并处理
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
