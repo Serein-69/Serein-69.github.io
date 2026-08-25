@@ -80,7 +80,6 @@ db.serialize(() => {
         )
     `);
 
-    // 自动平滑升级已有数据库表结构
     db.run(`ALTER TABLE players ADD COLUMN peak_score INTEGER DEFAULT 1000;`, () => {});
     db.run(`ALTER TABLE players ADD COLUMN best_streak INTEGER DEFAULT 0;`, () => {});
     db.run(`ALTER TABLE players ADD COLUMN current_streak INTEGER DEFAULT 0;`, () => {});
@@ -94,7 +93,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -120,7 +118,6 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 🔍 单玩家基础数据查询接口
 app.get('/api/player/:steamId', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -135,16 +132,13 @@ app.get('/api/player/:steamId', (req, res) => {
     );
 });
 
-// 🏆【新增】：精准获取玩家在全网的总名次（Rank #N）
 app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
 
-    // 先查出该玩家的当前分
     db.get("SELECT score, wins, matches, peak_score, best_streak FROM players WHERE player_id = ?", [steamId], (err, player) => {
         if (err || !player) return res.status(404).json({ status: "not_found" });
 
-        // 计算全网有多少人的 score 比他高（排名 = 比他分高的人数 + 1）
         db.get(
             "SELECT COUNT(*) as rank_count FROM players WHERE score > ? OR (score = ? AND wins > ?)", 
             [player.score, player.score, player.wins], 
@@ -167,7 +161,6 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     });
 });
 
-// 手动绑定国籍接口
 app.post('/api/mod/bind', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -203,7 +196,6 @@ app.post('/api/mod/bind', async (req, res) => {
     });
 });
 
-// 核心多服务器数据合并处理（防低版本/低胜场覆盖）
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -248,7 +240,6 @@ async function processReport(body) {
     if (wins === null) wins = body.isWin ? 1 : 0;
     if (matches === null) matches = 1;
 
-    // 🔥 智能多服合并：胜场只增不减，当前分取最新/更高数据，历史最高分取峰值
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
