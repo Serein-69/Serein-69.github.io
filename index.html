@@ -35,7 +35,6 @@
 
         .nav-right { display: flex; align-items: center; gap: 12px; }
 
-        /* Discord 按钮样式 */
         .discord-btn {
             display: inline-flex; align-items: center; gap: 7px;
             background: var(--discord); color: #fff; text-decoration: none;
@@ -61,7 +60,6 @@
         .hero-top-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
         .hero-badge { color: var(--accent-pink); font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
         
-        /* 作者专属勋章 */
         .hero-author-badge {
             background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35);
             padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
@@ -345,42 +343,47 @@
             }
         };
 
+
         const TIER_NAMES = {
             zh: {
                 gm4: "宗师 IV", gm3: "宗师 III", gm2: "宗师 II", gm1: "宗师 I",
                 m4: "大师 IV", m3: "大师 III", m2: "大师 II", m1: "大师 I",
-                d2: "钻石 II", d1: "钻石 I",
+                d4: "钻石 IV", d3: "钻石 III", d2: "钻石 II", d1: "钻石 I",
                 p4: "铂金 IV", p3: "铂金 III", p2: "铂金 II", p1: "铂金 I",
                 g4: "黄金 IV", g3: "黄金 III", g2: "黄金 II", g1: "黄金 I",
-                s2: "白银 II", s1: "白银 I",
-                b: "青铜"
+                s4: "白银 IV", s3: "白银 III", s2: "白银 II", s1: "白银 I",
+                b4: "青铜 IV", b3: "青铜 III", b2: "青铜 II", b1: "青铜 I",
+                clown: "小丑"
             },
             en: {
                 gm4: "GM IV", gm3: "GM III", gm2: "GM II", gm1: "GM I",
                 m4: "Master IV", m3: "Master III", m2: "Master II", m1: "Master I",
-                d2: "Diamond II", d1: "Diamond I",
+                d4: "Diamond IV", d3: "Diamond III", d2: "Diamond II", d1: "Diamond I",
                 p4: "Platinum IV", p3: "Platinum III", p2: "Platinum II", p1: "Platinum I",
                 g4: "Gold IV", g3: "Gold III", g2: "Gold II", g1: "Gold I",
-                s2: "Silver II", s1: "Silver I",
-                b: "Bronze"
+                s4: "Silver IV", s3: "Silver III", s2: "Silver II", s1: "Silver I",
+                b4: "Bronze IV", b3: "Bronze III", b2: "Bronze II", b1: "Bronze I",
+                clown: "Clown"
             },
             ru: {
                 gm4: "Грандмастер IV", gm3: "Грандмастер III", gm2: "Грандмастер II", gm1: "Грандмастер I",
                 m4: "Мастер IV", m3: "Мастер III", m2: "Мастер II", m1: "Мастер I",
-                d2: "Алмаз II", d1: "Алмаз I",
+                d4: "Алмаз IV", d3: "Алмаз III", d2: "Алмаз II", d1: "Алмаз I",
                 p4: "Платина IV", p3: "Платина III", p2: "Платина II", p1: "Платина I",
                 g4: "Золото IV", g3: "Золото III", g2: "Золото II", g1: "Золото I",
-                s2: "Серебро II", s1: "Серебро I",
-                b: "Бронза"
+                s4: "Серебро IV", s3: "Серебро III", s2: "Серебро II", s1: "Серебро I",
+                b4: "Бронза IV", b3: "Бронза III", b2: "Бронза II", b1: "Бронза I",
+                clown: "Клоун"
             },
             tr: {
                 gm4: "Büyük Usta IV", gm3: "Büyük Usta III", gm2: "Büyük Usta II", gm1: "Büyük Usta I",
                 m4: "Usta IV", m3: "Usta III", m2: "Usta II", m1: "Usta I",
-                d2: "Elmas II", d1: "Elmas I",
+                d4: "Elmas IV", d3: "Elmas III", d2: "Elmas II", d1: "Elmas I",
                 p4: "Platin IV", p3: "Platin III", p2: "Platin II", p1: "Platin I",
                 g4: "Altın IV", g3: "Altın III", g2: "Altın II", g1: "Altın I",
-                s2: "Gümüş II", s1: "Gümüş I",
-                b: "Bronz"
+                s4: "Gümüş IV", s3: "Gümüş III", s2: "Gümüş II", s1: "Gümüş I",
+                b4: "Bronz IV", b3: "Bronz III", b2: "Bronz II", b1: "Bronz I",
+                clown: "Palyaço"
             }
         };
 
@@ -400,29 +403,53 @@
                          onerror="this.outerHTML='🌐 ${t.unbound_label}'" />`;
         }
 
+
         function getTierInfo(score) {
             const dict = TIER_NAMES[currentLang] || TIER_NAMES.zh;
+            
+
             if (score >= 1400) return { name: dict.gm4, class: "tier-gm" };
             if (score >= 1390) return { name: dict.gm3, class: "tier-gm" };
-            if (score >= 1375) return { name: dict.gm2, class: "tier-gm" };
+            if (score >= 1370) return { name: dict.gm2, class: "tier-gm" };
             if (score >= 1350) return { name: dict.gm1, class: "tier-gm" };
+            
+
             if (score >= 1330) return { name: dict.m4, class: "tier-master" };
             if (score >= 1320) return { name: dict.m3, class: "tier-master" };
             if (score >= 1310) return { name: dict.m2, class: "tier-master" };
             if (score >= 1300) return { name: dict.m1, class: "tier-master" };
+            
+
+            if (score >= 1290) return { name: dict.d4, class: "tier-diamond" };
+            if (score >= 1275) return { name: dict.d3, class: "tier-diamond" };
             if (score >= 1260) return { name: dict.d2, class: "tier-diamond" };
             if (score >= 1245) return { name: dict.d1, class: "tier-diamond" };
+            
+
             if (score >= 1230) return { name: dict.p4, class: "tier-platinum" };
             if (score >= 1210) return { name: dict.p3, class: "tier-platinum" };
             if (score >= 1190) return { name: dict.p2, class: "tier-platinum" };
             if (score >= 1170) return { name: dict.p1, class: "tier-platinum" };
+            
+    
             if (score >= 1150) return { name: dict.g4, class: "tier-gold" };
             if (score >= 1125) return { name: dict.g3, class: "tier-gold" };
-            if (score >= 1110) return { name: dict.g2, class: "tier-gold" };
-            if (score >= 1100) return { name: dict.g1, class: "tier-gold" };
-            if (score >= 1050) return { name: dict.s2, class: "tier-silver" };
-            if (score >= 1000) return { name: dict.s1, class: "tier-silver" };
-            return { name: dict.b, class: "tier-bronze" };
+            if (score >= 1100) return { name: dict.g2, class: "tier-gold" };
+            if (score >= 1075) return { name: dict.g1, class: "tier-gold" };
+            
+   
+            if (score >= 1050) return { name: dict.s4, class: "tier-silver" };
+            if (score >= 1025) return { name: dict.s3, class: "tier-silver" };
+            if (score >= 1000) return { name: dict.s2, class: "tier-silver" };
+            if (score >= 975)  return { name: dict.s1, class: "tier-silver" };
+
+
+            if (score >= 950) return { name: dict.b4, class: "tier-bronze" };
+            if (score >= 900) return { name: dict.b3, class: "tier-bronze" };
+            if (score >= 850) return { name: dict.b2, class: "tier-bronze" };
+            if (score >= 800) return { name: dict.b1, class: "tier-bronze" };
+            
+            return { name: dict.clown, class: "tier-bronze" };
         }
 
         function changeLanguage(lang) {
