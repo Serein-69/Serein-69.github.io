@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
-// 内存中维护一个极轻量的数据版本时间戳
 let lastDbUpdateTime = Date.now();
 
 app.use(cors());
@@ -89,7 +88,7 @@ db.serialize(() => {
 
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已就绪（精准全网排名系统已启用）！");
+    console.log("[DB] 数据库已就绪（ROW_NUMBER 精准排名算法已装载）！");
 });
 
 app.get('/', (req, res) => {
@@ -158,31 +157,34 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
 
-    db.get("SELECT player_id, score, wins, matches, peak_score, best_streak FROM players WHERE player_id = ?", [steamId], (err, target) => {
-        if (err || !target) return res.status(404).json({ status: "not_found" });
+    const sql = `
+        WITH RankedPlayers AS (
+            SELECT 
+                player_id, 
+                score, 
+                wins, 
+                matches, 
+                peak_score, 
+                best_streak,
+                ROW_NUMBER() OVER (ORDER BY score DESC, wins DESC, id ASC) as global_rank
+            FROM players
+        )
+        SELECT * FROM RankedPlayers WHERE player_id = ?
+    `;
 
-        const countSql = `
-            SELECT COUNT(*) as rank_count 
-            FROM players 
-            WHERE score > ? 
-               OR (score = ? AND wins > ?)
-               OR (score = ? AND wins = ? AND id < (SELECT id FROM players WHERE player_id = ?))
-        `;
-
-        db.get(countSql, [target.score, target.score, target.wins, target.score, target.wins, steamId], (err, rankResult) => {
-            if (err) return res.status(500).json({ status: "error", message: err.message });
-            const globalRank = (rankResult?.rank_count || 0) + 1;
-            res.json({
-                status: "success",
-                data: {
-                    rank: globalRank,
-                    score: target.score,
-                    peakScore: target.peak_score || target.score,
-                    wins: target.wins,
-                    matches: target.matches,
-                    bestStreak: target.best_streak || 0
-                }
-            });
+    db.get(sql, [steamId], (err, row) => {
+        if (err || !row) return res.status(404).json({ status: "not_found" });
+        
+        res.json({
+            status: "success",
+            data: {
+                rank: row.global_rank,
+                score: row.score,
+                peakScore: row.peak_score || row.score,
+                wins: row.wins,
+                matches: row.matches,
+                bestStreak: row.best_streak || 0
+            }
         });
     });
 });
