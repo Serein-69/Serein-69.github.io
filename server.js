@@ -9,6 +9,9 @@ const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
+// 内存中维护一个极轻量的数据版本时间戳
+let lastDbUpdateTime = Date.now();
+
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
@@ -86,13 +89,35 @@ db.serialize(() => {
 
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已就绪（支持全网排名计算与防低分覆盖）！");
+    console.log("[DB] 数据库已就绪（支持版本比对与全自动远程分发）！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// ⚡【极轻量版本检测接口】：只有几个字节，0 性能开销
+app.get('/api/leaderboard/version', (req, res) => {
+    res.json({ status: "success", version: lastDbUpdateTime });
+});
+
+// 📦【远程全量导出接口】：供服务器后台静默同步
+app.get('/api/leaderboard/export', (req, res) => {
+    db.all("SELECT player_id, name, score, peak_score, wins, matches, best_streak, current_streak FROM players ORDER BY score DESC, wins DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        
+        let lines = [];
+        for (let p of (rows || [])) {
+            let losses = Math.max(0, p.matches - p.wins);
+            let line = `${p.player_id}|Username:${p.name}|CurrentElo:${p.score}|PeakElo:${p.peak_score || p.score}|TotalMatches:${p.matches}|Wins:${p.wins}|Losses:${losses}|BestWinStreak:${p.best_streak || 0}|CurrentWinStreak:${p.current_streak || 0}`;
+            lines.push(line);
+        }
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.send(lines.join('\n'));
+    });
+});
+
+// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -118,6 +143,7 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
+// 🔍 单玩家基础数据查询接口
 app.get('/api/player/:steamId', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -132,6 +158,7 @@ app.get('/api/player/:steamId', (req, res) => {
     );
 });
 
+// 🏆 单玩家全网总排名计算接口
 app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -161,6 +188,7 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     });
 });
 
+// 手动绑定国籍接口
 app.post('/api/mod/bind', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -192,10 +220,12 @@ app.post('/api/mod/bind', async (req, res) => {
 
     db.run(sql, [cleanSteamId, playerName, manualRegion], function (err) {
         if (err) return res.status(500).json({ status: "error", message: err.message });
+        lastDbUpdateTime = Date.now();
         res.json({ status: "success", region: manualRegion });
     });
 });
 
+// 核心多服务器数据合并处理
 async function processReport(body) {
     let steamId = String(body.steamId || body.playerId || "").trim();
     let name = cleanName(body.name || body.playerName);
@@ -246,19 +276,13 @@ async function processReport(body) {
         ON CONFLICT(player_id) DO UPDATE SET
             name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
             region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
-            
-            -- 当前分：若上传数据场次更多或分数更高，才采纳新的当前分
             score = CASE 
                 WHEN excluded.matches >= players.matches THEN excluded.score 
                 WHEN excluded.score > players.score THEN excluded.score
                 ELSE players.score 
             END,
-
-            -- 胜场和总场次：坚决取最大值
             wins = MAX(players.wins, excluded.wins),
             matches = MAX(players.matches, excluded.matches),
-
-            -- 历史最高分和最高连胜：始终保留最大峰值
             peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.peak_score, excluded.score, players.score),
             best_streak = MAX(COALESCE(players.best_streak, 0), excluded.best_streak),
             current_streak = excluded.current_streak,
@@ -281,6 +305,7 @@ app.post('/api/score', async (req, res) => {
             const pObj = { steamId: parts[0], rawLine: line };
             await processReport(pObj);
         }
+        lastDbUpdateTime = Date.now();
         return res.json({ status: "success", count: lines.length });
     }
 
@@ -290,6 +315,7 @@ app.post('/api/score', async (req, res) => {
         await processReport(req.body);
     }
 
+    lastDbUpdateTime = Date.now();
     res.json({ status: "success" });
 });
 
@@ -299,6 +325,7 @@ app.all('/api/admin/clear-all-data', (req, res) => {
 
     db.run("DELETE FROM players", (err) => {
         if (err) return res.status(500).send("清空失败: " + err.message);
+        lastDbUpdateTime = Date.now();
         res.send("<h1>✅ 数据库已彻底清空！</h1><p><a href='/'>返回排行榜</a></p>");
     });
 });
