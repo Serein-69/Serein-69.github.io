@@ -20,9 +20,9 @@ app.use(express.static(__dirname));
 function cleanName(name) {
     if (!name) return "Player";
     let str = String(name)
-        .replace(/<[^>]*>/g, '')              
-        .replace(/\[[0-9a-fA-F]{6}\]/g, '')   
-        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '') 
+        .replace(/<[^>]*>/g, '')
+        .replace(/\[[0-9a-fA-F]{6}\]/g, '')
+        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
         .trim();
     return str || "Player";
 }
@@ -78,13 +78,25 @@ db.serialize(() => {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            admin_name TEXT DEFAULT 'Server Admin',
+            reason TEXT DEFAULT 'Violation of rules',
+            duration TEXT DEFAULT 'Permanent',
+            ban_date DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     db.run(`ALTER TABLE players ADD COLUMN peak_score INTEGER DEFAULT 1000;`, () => {});
     db.run(`ALTER TABLE players ADD COLUMN best_streak INTEGER DEFAULT 0;`, () => {});
     db.run(`ALTER TABLE players ADD COLUMN current_streak INTEGER DEFAULT 0;`, () => {});
 
     db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
-    console.log("[DB] 数据库已就绪（特殊字符完美解析支持）！");
+    console.log("[DB] 数据库已就绪（支持排行榜与 banlogs 封禁黑名单）！");
 });
 
 app.get('/', (req, res) => {
@@ -134,6 +146,67 @@ app.get('/api/leaderboard', (req, res) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
         res.json({ status: "success", data: rows || [] });
     });
+});
+
+app.get('/api/bans', (req, res) => {
+    db.all("SELECT player_id, player_name, admin_name, reason, duration, ban_date FROM bans ORDER BY ban_date DESC LIMIT 500", [], (err, rows) => {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        res.json({ status: "success", data: rows || [] });
+    });
+});
+
+app.post('/api/mod/ban', async (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+
+    const steamId = String(req.body.steamId || "").trim();
+    const playerName = cleanName(req.body.playerName);
+    const adminName = cleanName(req.body.adminName);
+    const reason = String(req.body.reason || "Rules violation").trim();
+    const duration = String(req.body.duration || "Permanent").trim();
+
+    if (!steamId || !/^\d{17}$/.test(steamId)) {
+        return res.status(400).json({ status: "error", message: "Invalid SteamID" });
+    }
+
+    const sql = `
+        INSERT INTO bans (player_id, player_name, admin_name, reason, duration, ban_date)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `;
+
+    db.run(sql, [steamId, playerName, adminName, reason, duration], function (err) {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        res.json({ status: "success", banId: this.lastID });
+    });
+});
+
+app.post('/api/mod/ban-batch', async (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
+
+    const bans = Array.isArray(req.body) ? req.body : [req.body];
+    if (bans.length === 0) return res.json({ status: "success", count: 0 });
+
+    const sql = `
+        INSERT INTO bans (player_id, player_name, admin_name, reason, duration, ban_date)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `;
+
+    for (let b of bans) {
+        let steamId = String(b.steamId || "").trim();
+        let playerName = cleanName(b.playerName);
+        let adminName = cleanName(b.adminName);
+        let reason = String(b.reason || "Violation of rules").trim();
+        let duration = String(b.duration || "Permanent").trim();
+
+        if (/^\d{17}$/.test(steamId)) {
+            await new Promise(resolve => {
+                db.run(sql, [steamId, playerName, adminName, reason, duration], resolve);
+            });
+        }
+    }
+
+    res.json({ status: "success", count: bans.length });
 });
 
 app.get('/api/player/:steamId', (req, res) => {
@@ -341,11 +414,12 @@ app.all('/api/admin/clear-all-data', (req, res) => {
 
     db.run("DELETE FROM players", (err) => {
         if (err) return res.status(500).send("清空失败: " + err.message);
+        db.run("DELETE FROM bans", () => {});
         lastDbUpdateTime = Date.now();
-        res.send("<h1>✅ 数据库已彻底清空！</h1><p><a href='/'>返回排行榜</a></p>");
+        res.send("<h1>✅ 数据库与封禁名单已彻底清空！</h1><p><a href='/'>返回排行榜</a></p>");
     });
 });
 
 app.listen(PORT, () => {
-    console.log(`[Server] 排行榜服务器已在端口 ${PORT} 启动！`);
+    console.log(`[Server] 排行榜与封禁服务器已在端口 ${PORT} 启动！`);
 });
