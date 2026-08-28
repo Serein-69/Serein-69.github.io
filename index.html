@@ -18,6 +18,7 @@
             --gold: #ffd700;
             --silver: #e2e8f0;
             --bronze: #d97706;
+            --danger: #ef4444;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
         }
@@ -41,16 +42,26 @@
             padding: 6px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 700;
             transition: all 0.2s; box-shadow: 0 2px 10px rgba(88, 101, 242, 0.3);
         }
-        .discord-btn:hover { background: var(--discord-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(88, 101, 242, 0.5); }
+        .discord-btn:hover { background: var(--discord-hover); transform: translateY(-1px); }
 
         .lang-select {
             background: #181b26; color: #fff; border: 1px solid var(--border-color);
             padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; outline: none; transition: border-color 0.2s;
+            cursor: pointer; outline: none;
         }
-        .lang-select:hover { border-color: var(--accent-pink); }
 
         .container { max-width: 1400px; margin: 0 auto; padding: 30px 20px; }
+
+        .tab-bar {
+            display: flex; gap: 10px; margin-bottom: 25px;
+        }
+        .tab-btn {
+            background: #151824; border: 1px solid var(--border-color); color: var(--text-muted);
+            padding: 10px 24px; border-radius: 8px; font-size: 0.95rem; font-weight: 800;
+            cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .tab-btn:hover { background: #1f2336; color: #fff; }
+        .tab-btn.active { background: var(--primary-gradient); color: #fff; border-color: transparent; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4); }
 
         .hero {
             border-radius: 16px; overflow: hidden;
@@ -59,11 +70,9 @@
         }
         .hero-top-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
         .hero-badge { color: var(--accent-pink); font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
-        
         .hero-author-badge {
             background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35);
             padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
-            display: inline-flex; align-items: center; gap: 5px;
         }
 
         .hero-title { font-size: 2.5rem; font-weight: 900; line-height: 1.1; margin-bottom: 15px; }
@@ -101,7 +110,6 @@
         .player-cell { display: flex; align-items: center; gap: 8px; font-weight: 700; max-width: 170px; }
         .player-avatar { width: 28px; height: 28px; border-radius: 50%; background: #2a2e3d; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
         .player-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; display: inline-block; }
-        .unbound-flag { color: #64748b; font-size: 0.78rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
         .score-badge { font-weight: 900; color: #ffffff; font-size: 0.92rem; }
         .peak-badge { color: #c084fc; font-weight: 800; font-size: 0.88rem; }
@@ -114,7 +122,7 @@
 
         .tier-tag {
             display: inline-block; padding: 3px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 800;
-            letter-spacing: 0.3px; white-space: nowrap; text-transform: none;
+            letter-spacing: 0.3px; white-space: nowrap;
         }
         .tier-gm { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid #f43f5e; }
         .tier-master { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid #c084fc; }
@@ -123,6 +131,11 @@
         .tier-gold { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #fbbf24; }
         .tier-silver { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid #cbd5e1; }
         .tier-bronze { background: rgba(217, 119, 6, 0.15); color: #f97316; border: 1px solid #f97316; }
+
+        .ban-status-badge {
+            background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444;
+            padding: 3px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 800;
+        }
 
         .pagination-container {
             display: flex; justify-content: space-between; align-items: center;
@@ -152,19 +165,16 @@
             padding: 3px; box-shadow: 0 0 22px rgba(168, 85, 247, 0.6);
         }
         .mvp-avatar-glow div { width: 100%; height: 100%; border-radius: 50%; background: #0c0e14; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; color: var(--gold); }
-        .mvp-name { font-size: 1.15rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .mvp-tier-box { margin-bottom: 6px; }
+        .mvp-name { font-size: 1.15rem; font-weight: 900; margin-bottom: 4px; }
         .mvp-score { font-size: 1.7rem; font-weight: 900; color: #ffffff; }
-        .mvp-extra { display: flex; justify-content: center; gap: 12px; margin-top: 10px; font-size: 0.78rem; color: var(--text-muted); }
 
         footer { border-top: 1px solid var(--border-color); padding: 35px 0 20px; background: #07080a; }
-        .footer-content { display: flex; justify-content: center; align-items: center; max-width: 1400px; margin: 0 auto; padding: 0 20px; flex-wrap: wrap; gap: 15px; }
+        .footer-content { display: flex; justify-content: center; align-items: center; max-width: 1400px; margin: 0 auto; padding: 0 20px; }
         .copyright { color: #666; font-size: 0.8rem; text-align: center; }
 
         @media (max-width: 1024px) {
             .main-grid { grid-template-columns: 1fr; }
             .stats-bar { grid-template-columns: repeat(2, 1fr); }
-            .footer-content { flex-direction: column; text-align: center; }
         }
     </style>
 </head>
@@ -189,11 +199,17 @@
     </nav>
 
     <div class="container">
+        <!-- 选项卡切换 -->
+        <div class="tab-bar">
+            <button class="tab-btn active" id="tabLeaderboard" onclick="switchTab('leaderboard')">🏆 <span data-i18n="tab_ladder">World Leaderboard</span></button>
+            <button class="tab-btn" id="tabBans" onclick="switchTab('bans')">🚫 <span data-i18n="tab_bans">Banned Players</span></button>
+        </div>
+
         <section class="hero">
             <div class="hero-top-row">
                 <div class="hero-badge" data-i18n="hero_badge">Global Competitive Ladder</div>
                 <div class="hero-author-badge">
-                    <span></span> <span data-i18n="author_badge">由 Serein & Albion 联合制作</span>
+                    <span>由 Serein & Albion 联合制作</span>
                 </div>
             </div>
             <h1 class="hero-title"><span data-i18n="hero_title_1">CRAB GAME</span><br><span data-i18n="hero_title_2">GLOBAL RANKINGS</span></h1>
@@ -230,7 +246,8 @@
             </div>
         </section>
 
-        <div class="main-grid">
+        <!-- 排行榜主面板 -->
+        <div class="main-grid" id="leaderboardSection">
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
@@ -267,17 +284,39 @@
 
             <div class="sidebar">
                 <div class="mvp-card">
-                    <div class="mvp-badge-top" data-i18n="mvp_title">👑 Current Rank #1</div>
+                    <div class="mvp-badge-top">👑 Current Rank #1</div>
                     <div class="mvp-avatar-glow">
                         <div id="mvpAvatar">👑</div>
                     </div>
                     <div class="mvp-name" id="mvpName">Loading...</div>
                     <div class="mvp-tier-box" id="mvpTierBox"></div>
                     <div class="mvp-score" id="mvpScore">...</div>
-                    <div class="mvp-score-sub" data-i18n="mvp_rating">Rating</div>
+                    <div class="mvp-score-sub">Global Rating</div>
                     <div class="mvp-extra" id="mvpExtra"></div>
                 </div>
             </div>
+        </div>
+
+        <!-- 🚫 封禁名单面板 -->
+        <div class="card" id="bansSection" style="display: none; margin-bottom: 40px;">
+            <div class="card-header">
+                <div class="card-title" style="color: #ef4444;">
+                    <span>🚫</span> <span data-i18n="bans_title">Banned Players List</span>
+                </div>
+            </div>
+            <table class="ranking-table">
+                <thead>
+                    <tr>
+                        <th>SteamID</th>
+                        <th data-i18n="th_player">Player</th>
+                        <th data-i18n="th_reason">Reason</th>
+                        <th data-i18n="th_duration">Duration</th>
+                        <th data-i18n="th_admin">Banned By</th>
+                        <th data-i18n="th_date">Date (UTC)</th>
+                    </tr>
+                </thead>
+                <tbody id="bansBody"></tbody>
+            </table>
         </div>
     </div>
 
@@ -291,164 +330,107 @@
 
     <script>
         const API_URL = "https://serein-69githubio-production.up.railway.app/api";
-        let cachedPlayers = JSON.parse(localStorage.getItem('crab_cached_leaderboard') || '[]');
-
+        let cachedPlayers = [];
+        let cachedBans = [];
         let currentPage = 1;
         const pageSize = 10;
+        let currentTab = 'leaderboard';
 
         const I18N = {
             en: {
+                tab_ladder: "World Leaderboard", tab_bans: "Banned Players", bans_title: "Banned Players (Wall of Shame)",
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
-                author_badge: "Crafted by Serein & Albion",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
                 th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR", th_peak: "Peak MMR", th_streak: "Streak", th_wl: "W - L", th_winrate: "Win Rate",
-                mvp_title: "👑 Current Rank #1", mvp_rating: "Global Rating",
-                unbound_label: "Unbound", no_player: "No players found",
-                pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next",
-                pg_search_result: "Found", pg_total: "total"
+                th_reason: "Reason", th_duration: "Duration", th_admin: "Admin", th_date: "Ban Date",
+                unbound_label: "Unbound", no_player: "No players found", no_bans: "No banned players recorded.",
+                pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next"
             },
             zh: {
+                tab_ladder: "全球天梯榜", tab_bans: "封禁黑名单", bans_title: "全服被封禁玩家名单 (耻辱柱)",
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
-                author_badge: "由 Serein & Albion 联合制作",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
                 th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "当前分", th_peak: "历史最高分", th_streak: "最高连胜", th_wl: "胜 - 负", th_winrate: "胜率",
-                mvp_title: "👑 当前全服榜一", mvp_rating: "天梯总评分",
-                unbound_label: "未绑定", no_player: "未找到玩家",
-                pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页",
-                pg_search_result: "找到", pg_total: "全服共"
+                th_reason: "封禁原因", th_duration: "封禁时长", th_admin: "执行管理员", th_date: "封禁时间",
+                unbound_label: "未绑定", no_player: "未找到玩家", no_bans: "当前暂无被封禁玩家。",
+                pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页"
             },
             ru: {
+                tab_ladder: "Таблица лидеров", tab_bans: "Заблокированные", bans_title: "Список забаненных игроков",
                 hero_badge: "Глобальная рейтинговая система", hero_title_1: "CRAB GAME", hero_title_2: "ТАБЛИЦА ЛИДЕРОВ",
-                author_badge: "Создано Serein и Albion",
                 stat_players: "Игроков в рейтинге", stat_matches: "Всего матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация активна",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
                 th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR", th_peak: "Пик MMR", th_streak: "Серия", th_wl: "П - П", th_winrate: "% Побед",
-                mvp_title: "👑 ТОП-1 Игрок", mvp_rating: "Рейтинг",
-                unbound_label: "Не привязан", no_player: "Игроки не найдены",
-                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед",
-                pg_search_result: "Найдено", pg_total: "всего"
+                th_reason: "Причина", th_duration: "Срок", th_admin: "Админ", th_date: "Дата",
+                unbound_label: "Не привязан", no_player: "Игроки не найдены", no_bans: "Нет забаненных игроков.",
+                pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед"
             },
             tr: {
+                tab_ladder: "Dünya Sıralaması", tab_bans: "Yasaklananlar", bans_title: "Yasaklanan Oyuncular Listesi",
                 hero_badge: "Küresel Rekabet Sıralaması", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
-                author_badge: "Serein & Albion Tarafından Geliştirildi",
                 stat_players: "Dereceli Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek MMR", stat_status: "Canlı Senkronizasyon",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
                 th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR", th_peak: "Zirve MMR", th_streak: "Seri", th_wl: "G - M", th_winrate: "Kazanma Oranı",
-                mvp_title: "👑 Şu Anki 1. Sıra", mvp_rating: "Küresel Puan",
-                unbound_label: "Bağlı Değil", no_player: "Oyuncu bulunamadı",
-                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki",
-                pg_search_result: "Bulunan", pg_total: "toplam"
+                th_reason: "Sebep", th_duration: "Süre", th_admin: "Yetkili", th_date: "Tarih",
+                unbound_label: "Bağlı Değil", no_player: "Oyuncu bulunamadı", no_bans: "Yasaklanan oyuncu yok.",
+                pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki"
             }
         };
 
-
         const TIER_NAMES = {
-            zh: {
-                gm4: "宗师 IV", gm3: "宗师 III", gm2: "宗师 II", gm1: "宗师 I",
-                m4: "大师 IV", m3: "大师 III", m2: "大师 II", m1: "大师 I",
-                d4: "钻石 IV", d3: "钻石 III", d2: "钻石 II", d1: "钻石 I",
-                p4: "铂金 IV", p3: "铂金 III", p2: "铂金 II", p1: "铂金 I",
-                g4: "黄金 IV", g3: "黄金 III", g2: "黄金 II", g1: "黄金 I",
-                s4: "白银 IV", s3: "白银 III", s2: "白银 II", s1: "白银 I",
-                b4: "青铜 IV", b3: "青铜 III", b2: "青铜 II", b1: "青铜 I",
-                clown: "小丑"
-            },
-            en: {
-                gm4: "GM IV", gm3: "GM III", gm2: "GM II", gm1: "GM I",
-                m4: "Master IV", m3: "Master III", m2: "Master II", m1: "Master I",
-                d4: "Diamond IV", d3: "Diamond III", d2: "Diamond II", d1: "Diamond I",
-                p4: "Platinum IV", p3: "Platinum III", p2: "Platinum II", p1: "Platinum I",
-                g4: "Gold IV", g3: "Gold III", g2: "Gold II", g1: "Gold I",
-                s4: "Silver IV", s3: "Silver III", s2: "Silver II", s1: "Silver I",
-                b4: "Bronze IV", b3: "Bronze III", b2: "Bronze II", b1: "Bronze I",
-                clown: "Clown"
-            },
-            ru: {
-                gm4: "Грандмастер IV", gm3: "Грандмастер III", gm2: "Грандмастер II", gm1: "Грандмастер I",
-                m4: "Мастер IV", m3: "Мастер III", m2: "Мастер II", m1: "Мастер I",
-                d4: "Алмаз IV", d3: "Алмаз III", d2: "Алмаз II", d1: "Алмаз I",
-                p4: "Платина IV", p3: "Платина III", p2: "Платина II", p1: "Платина I",
-                g4: "Золото IV", g3: "Золото III", g2: "Золото II", g1: "Золото I",
-                s4: "Серебро IV", s3: "Серебро III", s2: "Серебро II", s1: "Серебро I",
-                b4: "Бронза IV", b3: "Бронза III", b2: "Бронза II", b1: "Бронза I",
-                clown: "Клоун"
-            },
-            tr: {
-                gm4: "Büyük Usta IV", gm3: "Büyük Usta III", gm2: "Büyük Usta II", gm1: "Büyük Usta I",
-                m4: "Usta IV", m3: "Usta III", m2: "Usta II", m1: "Usta I",
-                d4: "Elmas IV", d3: "Elmas III", d2: "Elmas II", d1: "Elmas I",
-                p4: "Platin IV", p3: "Platin III", p2: "Platin II", p1: "Platin I",
-                g4: "Altın IV", g3: "Altın III", g2: "Altın II", g1: "Altın I",
-                s4: "Gümüş IV", s3: "Gümüş III", s2: "Gümüş II", s1: "Gümüş I",
-                b4: "Bronz IV", b3: "Bronz III", b2: "Bronz II", b1: "Bronz I",
-                clown: "Palyaço"
-            }
+            zh: { gm4: "宗师 IV", gm3: "宗师 III", gm2: "宗师 II", gm1: "宗师 I", m4: "大师 IV", m3: "大师 III", m2: "大师 II", m1: "大师 I", d4: "钻石 IV", d3: "钻石 III", d2: "钻石 II", d1: "钻石 I", p4: "铂金 IV", p3: "铂金 III", p2: "铂金 II", p1: "铂金 I", g4: "黄金 IV", g3: "黄金 III", g2: "黄金 II", g1: "黄金 I", s4: "白银 IV", s3: "白银 III", s2: "白银 II", s1: "白银 I", b4: "青铜 IV", b3: "青铜 III", b2: "青铜 II", b1: "青铜 I", clown: "小丑" },
+            en: { gm4: "GM IV", gm3: "GM III", gm2: "GM II", gm1: "GM I", m4: "Master IV", m3: "Master III", m2: "Master II", m1: "Master I", d4: "Diamond IV", d3: "Diamond III", d2: "Diamond II", d1: "Diamond I", p4: "Platinum IV", p3: "Platinum III", p2: "Platinum II", p1: "Platinum I", g4: "Gold IV", g3: "Gold III", g2: "Gold II", g1: "Gold I", s4: "Silver IV", s3: "Silver III", s2: "Silver II", s1: "Silver I", b4: "Bronze IV", b3: "Bronze III", b2: "Bronze II", b1: "Bronze I", clown: "Clown" }
         };
 
         let currentLang = localStorage.getItem('crab_ranking_lang') || 'zh';
 
-        function getCountryFlagHtml(code) {
-            const t = I18N[currentLang] || I18N.zh;
-            if (!code || code.toUpperCase() === 'GLOBAL' || code.length !== 2) {
-                return `<span class="unbound-flag">🌐 ${t.unbound_label}</span>`;
-            }
-            const lowerCode = code.toLowerCase();
-            return `<img src="https://flagcdn.com/24x18/${lowerCode}.png" 
-                         srcset="https://flagcdn.com/48x36/${lowerCode}.png 2x" 
-                         width="22" height="16" 
-                         alt="${code}" 
-                         style="border-radius:3px; vertical-align:middle; box-shadow:0 0 2px rgba(0,0,0,0.5);" 
-                         onerror="this.outerHTML='🌐 ${t.unbound_label}'" />`;
-        }
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tabLeaderboard').className = `tab-btn ${tab === 'leaderboard' ? 'active' : ''}`;
+            document.getElementById('tabBans').className = `tab-btn ${tab === 'bans' ? 'active' : ''}`;
 
+            if (tab === 'leaderboard') {
+                document.getElementById('leaderboardSection').style.display = 'grid';
+                document.getElementById('bansSection').style.display = 'none';
+            } else {
+                document.getElementById('leaderboardSection').style.display = 'none';
+                document.getElementById('bansSection').style.display = 'block';
+                loadBans();
+            }
+        }
 
         function getTierInfo(score) {
             const dict = TIER_NAMES[currentLang] || TIER_NAMES.zh;
-            
-
             if (score >= 1400) return { name: dict.gm4, class: "tier-gm" };
             if (score >= 1390) return { name: dict.gm3, class: "tier-gm" };
             if (score >= 1370) return { name: dict.gm2, class: "tier-gm" };
             if (score >= 1350) return { name: dict.gm1, class: "tier-gm" };
-            
-
             if (score >= 1330) return { name: dict.m4, class: "tier-master" };
             if (score >= 1320) return { name: dict.m3, class: "tier-master" };
             if (score >= 1310) return { name: dict.m2, class: "tier-master" };
             if (score >= 1300) return { name: dict.m1, class: "tier-master" };
-            
-
             if (score >= 1290) return { name: dict.d4, class: "tier-diamond" };
             if (score >= 1275) return { name: dict.d3, class: "tier-diamond" };
             if (score >= 1260) return { name: dict.d2, class: "tier-diamond" };
             if (score >= 1245) return { name: dict.d1, class: "tier-diamond" };
-            
-
             if (score >= 1230) return { name: dict.p4, class: "tier-platinum" };
             if (score >= 1210) return { name: dict.p3, class: "tier-platinum" };
             if (score >= 1190) return { name: dict.p2, class: "tier-platinum" };
             if (score >= 1170) return { name: dict.p1, class: "tier-platinum" };
-            
-    
             if (score >= 1150) return { name: dict.g4, class: "tier-gold" };
             if (score >= 1125) return { name: dict.g3, class: "tier-gold" };
             if (score >= 1100) return { name: dict.g2, class: "tier-gold" };
             if (score >= 1075) return { name: dict.g1, class: "tier-gold" };
-            
-   
             if (score >= 1050) return { name: dict.s4, class: "tier-silver" };
             if (score >= 1025) return { name: dict.s3, class: "tier-silver" };
             if (score >= 1000) return { name: dict.s2, class: "tier-silver" };
             if (score >= 975)  return { name: dict.s1, class: "tier-silver" };
-
-
             if (score >= 950) return { name: dict.b4, class: "tier-bronze" };
             if (score >= 900) return { name: dict.b3, class: "tier-bronze" };
             if (score >= 850) return { name: dict.b2, class: "tier-bronze" };
             if (score >= 800) return { name: dict.b1, class: "tier-bronze" };
-            
             return { name: dict.clown, class: "tier-bronze" };
         }
 
@@ -469,6 +451,7 @@
 
             updateHeroStats();
             renderUI(document.getElementById('searchInput').value);
+            if (currentTab === 'bans') renderBans();
         }
 
         async function loadLeaderboard() {
@@ -477,15 +460,47 @@
                 const result = await res.json();
                 if (result.status === "success") {
                     let players = result.data || [];
-                    players.forEach((p, index) => {
-                        p.originalRank = index + 1;
-                    });
+                    players.forEach((p, index) => { p.originalRank = index + 1; });
                     cachedPlayers = players;
-                    localStorage.setItem('crab_cached_leaderboard', JSON.stringify(cachedPlayers));
                     updateHeroStats();
                     renderUI(document.getElementById('searchInput').value);
                 }
             } catch (err) {}
+        }
+
+        async function loadBans() {
+            try {
+                const res = await fetch(`${API_URL}/bans`);
+                const result = await res.json();
+                if (result.status === "success") {
+                    cachedBans = result.data || [];
+                    renderBans();
+                }
+            } catch (err) {}
+        }
+
+        function renderBans() {
+            const tbody = document.getElementById('bansBody');
+            const t = I18N[currentLang] || I18N.zh;
+            tbody.innerHTML = "";
+
+            if (cachedBans.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">${t.no_bans}</td></tr>`;
+                return;
+            }
+
+            cachedBans.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-family:monospace; color:var(--text-muted);">${b.player_id}</td>
+                    <td style="font-weight:700; color:#fff;">${b.player_name}</td>
+                    <td style="color:#f87171;">${b.reason}</td>
+                    <td><span class="ban-status-badge">${b.duration}</span></td>
+                    <td style="color:var(--text-muted);">${b.admin_name}</td>
+                    <td style="color:var(--text-muted); font-size:0.8rem;">${new Date(b.ban_date).toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
 
         function updateHeroStats() {
@@ -497,7 +512,7 @@
                 const top1 = cachedPlayers[0];
                 document.getElementById('statTopMMR').innerText = (top1.peak_score || top1.score).toLocaleString();
                 const top1Tier = getTierInfo(top1.score);
-                document.getElementById('mvpName').innerHTML = `${getCountryFlagHtml(top1.region)} <span>${top1.name}</span>`;
+                document.getElementById('mvpName').innerText = top1.name;
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
                 document.getElementById('mvpAvatar').innerText = (top1.name || "P").substring(0, 1).toUpperCase();
@@ -529,18 +544,14 @@
                 const rank = p.originalRank;
                 let rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "";
                 let rankIcon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
-
                 const tier = getTierInfo(p.score);
                 const losses = Math.max(0, (p.matches || 0) - (p.wins || 0));
                 const winRateFormatted = (parseFloat(p.winRate) || 0).toFixed(1);
-                const flagHtml = getCountryFlagHtml(p.region);
-                const peakElo = p.peak_score || p.score;
-                const bestStreak = p.best_streak || 0;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="rank-num ${rankClass}">${rankIcon}</td>
-                    <td>${flagHtml}</td>
+                    <td>🌐</td>
                     <td>
                         <div class="player-cell" title="${p.name}">
                             <div class="player-avatar">${(p.name || "P").substring(0, 1).toUpperCase()}</div>
@@ -549,8 +560,8 @@
                     </td>
                     <td><span class="tier-tag ${tier.class}">${tier.name}</span></td>
                     <td><span class="score-badge">${p.score.toLocaleString()}</span></td>
-                    <td><span class="peak-badge">${peakElo.toLocaleString()}</span></td>
-                    <td><span class="streak-badge">🔥 ${bestStreak}</span></td>
+                    <td><span class="peak-badge">${(p.peak_score || p.score).toLocaleString()}</span></td>
+                    <td><span class="streak-badge">🔥 ${p.best_streak || 0}</span></td>
                     <td style="color:var(--text-muted); font-size:0.82rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
                     <td><span style="color:#10b981; font-weight:800; font-size:0.92rem;">${winRateFormatted}%</span></td>
                 `;
@@ -568,10 +579,6 @@
 
             if (matchedCount === 0) {
                 info.innerText = `${t.pg_showing} 0 ${t.pg_of} 0 ${t.pg_players}`;
-            } else if (query) {
-                const start = (currentPage - 1) * pageSize + 1;
-                const end = Math.min(currentPage * pageSize, matchedCount);
-                info.innerText = `${t.pg_search_result} ${matchedCount} (${t.pg_showing} ${start}-${end}, ${t.pg_total} ${totalCount.toLocaleString()})`;
             } else {
                 const start = (currentPage - 1) * pageSize + 1;
                 const end = Math.min(currentPage * pageSize, totalCount);
