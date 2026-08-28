@@ -7,14 +7,7 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
-
-// 🛡️ 全局防崩溃守护
-process.on('uncaughtException', (err) => {
-    console.error('[Anti-Crash] 未捕获异常 (已拦截，服务继续运行):', err.message);
-});
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('[Anti-Crash] 未处理的异步拒绝 (已拦截):', reason);
-});
+const STEAM_API_KEY = process.env.STEAM_API_KEY || "4DD351A754D7C9273E2A6EC640D845B1";
 
 let lastDbUpdateTime = Date.now();
 
@@ -23,6 +16,35 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.text({ limit: '100mb' }));
 app.use(express.static(__dirname));
+
+// 🛡️ 智能清洗名字（只移除 HTML/富文本标签，完美保留玩家的特殊符号、标点与 Emoji）
+function cleanName(name) {
+    if (!name) return "Player";
+    let str = String(name)
+        .replace(/<[^>]*>/g, '')              // 移除 HTML/Unity 富文本标签
+        .replace(/\[[0-9a-fA-F]{6}\]/g, '')   // 移除颜色十六进制标签
+        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '') // 移除不可见零宽字符
+        .trim();
+    return str || "Player";
+}
+
+async function fetchSteamProfile(steamId) {
+    if (!STEAM_API_KEY) return null;
+    try {
+        const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${steamId}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const player = data?.response?.players?.[0];
+        if (!player) return null;
+
+        return {
+            personaName: player.personaname || null,
+            countryCode: player.loccountrycode ? player.loccountrycode.toUpperCase() : 'GLOBAL'
+        };
+    } catch (e) {
+        return null;
+    }
+}
 
 let dataFolder = __dirname;
 try {
@@ -33,69 +55,47 @@ try {
 
 const dbPath = path.resolve(dataFolder, 'leaderboard.db');
 const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error("Database connection error:", err.message);
-    } else {
+    if (err) console.error("Database error:", err.message);
+    else {
         db.run("PRAGMA journal_mode = WAL;");
         db.run("PRAGMA synchronous = NORMAL;");
     }
 });
 
 db.serialize(() => {
-    try {
-        // 玩家排行榜表
-        db.run(`
-            CREATE TABLE IF NOT EXISTS players (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_id TEXT UNIQUE,
-                name TEXT NOT NULL,
-                region TEXT DEFAULT 'GLOBAL',
-                wins INTEGER DEFAULT 0,
-                matches INTEGER DEFAULT 0,
-                score INTEGER DEFAULT 1000,
-                peak_score INTEGER DEFAULT 1000,
-                best_streak INTEGER DEFAULT 0,
-                current_streak INTEGER DEFAULT 0,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    db.run(`
+        CREATE TABLE IF NOT EXISTS players (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id TEXT UNIQUE,
+            name TEXT NOT NULL,
+            region TEXT DEFAULT 'GLOBAL',
+            wins INTEGER DEFAULT 0,
+            matches INTEGER DEFAULT 0,
+            score INTEGER DEFAULT 1000,
+            peak_score INTEGER DEFAULT 1000,
+            best_streak INTEGER DEFAULT 0,
+            current_streak INTEGER DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
 
-        // 🚫 封禁表
-        db.run(`
-            CREATE TABLE IF NOT EXISTS bans (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_id TEXT,
-                player_name TEXT NOT NULL,
-                admin_name TEXT DEFAULT 'Admin',
-                reason TEXT DEFAULT 'Violation of rules',
-                duration TEXT DEFAULT 'Permanent',
-                ban_date DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    db.run(`ALTER TABLE players ADD COLUMN peak_score INTEGER DEFAULT 1000;`, () => {});
+    db.run(`ALTER TABLE players ADD COLUMN best_streak INTEGER DEFAULT 0;`, () => {});
+    db.run(`ALTER TABLE players ADD COLUMN current_streak INTEGER DEFAULT 0;`, () => {});
 
-        // 尝试安全添加字段（忽略重复添加报错）
-        db.run(`ALTER TABLE players ADD COLUMN peak_score INTEGER DEFAULT 1000;`, () => {});
-        db.run(`ALTER TABLE players ADD COLUMN best_streak INTEGER DEFAULT 0;`, () => {});
-        db.run(`ALTER TABLE players ADD COLUMN current_streak INTEGER DEFAULT 0;`, () => {});
-
-        db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`, () => {});
-        db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`, () => {});
-        console.log("[DB] 数据库已完全就绪！");
-    } catch (e) {
-        console.error("[DB Init Warning]:", e.message);
-    }
+    db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
+    console.log("[DB] 数据库已就绪（特殊字符完美解析支持）！");
 });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 版本检测
 app.get('/api/leaderboard/version', (req, res) => {
     res.json({ status: "success", version: lastDbUpdateTime });
 });
 
-// 导出全量数据
 app.get('/api/leaderboard/export', (req, res) => {
     db.all("SELECT player_id, name, score, peak_score, wins, matches, best_streak, current_streak FROM players ORDER BY score DESC, wins DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
@@ -112,7 +112,6 @@ app.get('/api/leaderboard/export', (req, res) => {
     });
 });
 
-// 排行榜列表查询接口
 app.get('/api/leaderboard', (req, res) => {
     const regionFilter = (req.query.region || '').trim().toUpperCase();
     let query = `
@@ -138,66 +137,20 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 🚫 封禁名单查询
-app.get('/api/bans', (req, res) => {
-    db.all("SELECT player_id, player_name, admin_name, reason, duration, ban_date FROM bans ORDER BY ban_date DESC LIMIT 500", [], (err, rows) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", data: rows || [] });
-    });
+app.get('/api/player/:steamId', (req, res) => {
+    const steamId = String(req.params.steamId || '').trim();
+    if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
+
+    db.get(
+        "SELECT player_id, name, region, wins, matches, score, COALESCE(peak_score, score) as peak_score, COALESCE(best_streak, 0) as best_streak FROM players WHERE player_id = ?",
+        [steamId],
+        (err, row) => {
+            if (err || !row) return res.status(404).json({ status: "not_found" });
+            res.json({ status: "success", data: row });
+        }
+    );
 });
 
-// 🚫 接收批量 banlogs 上报
-app.post('/api/mod/ban-batch', async (req, res) => {
-    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    const rawContent = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-    if (!rawContent || !rawContent.trim()) return res.json({ status: "success", count: 0 });
-
-    const logBlocks = rawContent.split(/===BAN_LOG_SPLIT===/g);
-    let successCount = 0;
-
-    const sql = `
-        INSERT INTO bans (player_id, player_name, admin_name, reason, duration, ban_date)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `;
-
-    for (let block of logBlocks) {
-        if (!block.trim()) continue;
-
-        let admin = "Admin";
-        let player = "Player";
-        let reason = "Violation of server rules";
-        let duration = "Permanent";
-        let steamId = "";
-
-        const lines = block.trim().split('\n');
-        for (let line of lines) {
-            let l = line.trim();
-            if (l.startsWith("Admin =")) admin = l.substring(7).trim();
-            if (l.startsWith("Player =")) player = l.substring(8).trim();
-            if (l.startsWith("Reason =")) reason = l.substring(8).trim();
-            if (l.startsWith("Duration =")) duration = l.substring(10).trim();
-        }
-
-        let m = player.match(/(\d{17})/);
-        if (m) {
-            steamId = m[1];
-            player = player.replace(steamId, '').replace(/[,\s]+$/g, '').trim() || "Banned Player";
-        }
-
-        if (/^\d{17}$/.test(steamId)) {
-            await new Promise(resolve => {
-                db.run(sql, [steamId, player, admin, reason, duration], resolve);
-            });
-            successCount++;
-        }
-    }
-
-    res.json({ status: "success", count: successCount });
-});
-
-// 🏆 单玩家全网总排名计算
 app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -205,7 +158,12 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     const sql = `
         WITH RankedPlayers AS (
             SELECT 
-                player_id, score, wins, matches, peak_score, best_streak,
+                player_id, 
+                score, 
+                wins, 
+                matches, 
+                peak_score, 
+                best_streak,
                 ROW_NUMBER() OVER (ORDER BY score DESC, wins DESC, id ASC) as global_rank
             FROM players
         )
@@ -229,64 +187,149 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     });
 });
 
-// 🎯 接收比赛结算数据
-app.post('/api/score', async (req, res) => {
+app.post('/api/mod/bind', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
 
-    let lines = [];
-    if (typeof req.body === 'string' && req.body.includes('|')) {
-        lines = req.body.trim().split('\n');
-    } else if (req.body.rawLine) {
-        lines = [req.body.rawLine];
+    const cleanSteamId = String(req.body.steamId || "").trim();
+    let manualRegion = (req.body.region || "").trim().toUpperCase();
+    let playerName = cleanName(req.body.name);
+
+    if (!cleanSteamId || !/^\d{17}$/.test(cleanSteamId)) {
+        return res.status(400).json({ status: "error", message: "SteamID 无效" });
+    }
+
+    if (!manualRegion || manualRegion === 'GLOBAL') {
+        const steamInfo = await fetchSteamProfile(cleanSteamId);
+        manualRegion = steamInfo?.countryCode || 'GLOBAL';
+        if (playerName === 'Player' && steamInfo?.personaName) {
+            playerName = cleanName(steamInfo.personaName);
+        }
     }
 
     const sql = `
         INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
-        VALUES (?, ?, 'GLOBAL', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, 0, 0, 1000, 1000, 0, 0, CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
             name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
-            score = excluded.score,
-            wins = excluded.wins,
-            matches = excluded.matches,
+            region = excluded.region,
+            updated_at = CURRENT_TIMESTAMP
+    `;
+
+    db.run(sql, [cleanSteamId, playerName, manualRegion], function (err) {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        lastDbUpdateTime = Date.now();
+        res.json({ status: "success", region: manualRegion });
+    });
+});
+
+async function processReport(body) {
+    let steamId = String(body.steamId || body.playerId || "").trim();
+    let name = cleanName(body.name || body.playerName);
+    let score = null;
+    let peakScore = null;
+    let wins = null;
+    let matches = null;
+    let bestStreak = 0;
+    let currentStreak = 0;
+
+    if (body.rawLine && typeof body.rawLine === 'string') {
+        const line = body.rawLine.trim();
+        const firstPipe = line.indexOf('|');
+        if (firstPipe > 0) {
+            const possibleId = line.substring(0, firstPipe).trim();
+            if (/^\d{17}$/.test(possibleId)) steamId = possibleId;
+        }
+
+        const extractField = (key) => {
+            const reg = new RegExp(`(?:\\||^)${key}:(.*?)(?=\\|[A-Za-z]+:|$)`);
+            const m = line.match(reg);
+            return m ? m[1].trim() : null;
+        };
+
+        const uName = extractField('Username');
+        if (uName && (!name || name === 'Player')) name = cleanName(uName);
+
+        const eloVal = extractField('CurrentElo') || extractField('Elo');
+        if (eloVal) score = parseInt(eloVal);
+
+        const peakVal = extractField('PeakElo');
+        if (peakVal) peakScore = parseInt(peakVal);
+
+        const winsVal = extractField('Wins');
+        if (winsVal) wins = parseInt(winsVal);
+
+        const matchesVal = extractField('TotalMatches') || extractField('GamesPlayed');
+        if (matchesVal) matches = parseInt(matchesVal);
+
+        const bestStrVal = extractField('BestWinStreak');
+        if (bestStrVal) bestStreak = parseInt(bestStrVal) || 0;
+
+        const curStrVal = extractField('CurrentWinStreak');
+        if (curStrVal) currentStreak = parseInt(curStrVal) || 0;
+    }
+
+    if (!steamId || !/^\d+$/.test(steamId)) return;
+
+    let region = 'GLOBAL';
+    const steamInfo = await fetchSteamProfile(steamId);
+    if (steamInfo) {
+        if (steamInfo.countryCode) region = steamInfo.countryCode;
+        if ((!name || name === 'Player' || name === 'Unknown') && steamInfo.personaName) {
+            name = cleanName(steamInfo.personaName);
+        }
+    }
+
+    if (score === null) score = Math.max(0, 1000 + (parseInt(body.scoreChange) || 0));
+    if (peakScore === null) peakScore = score;
+    else peakScore = Math.max(peakScore, score);
+
+    if (wins === null) wins = body.isWin ? 1 : 0;
+    if (matches === null) matches = 1;
+
+    const sql = `
+        INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(player_id) DO UPDATE SET
+            name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
+            region = CASE WHEN players.region = 'GLOBAL' THEN excluded.region ELSE players.region END,
+            score = CASE 
+                WHEN excluded.matches >= players.matches THEN excluded.score 
+                WHEN excluded.score > players.score THEN excluded.score
+                ELSE players.score 
+            END,
+            wins = MAX(players.wins, excluded.wins),
+            matches = MAX(players.matches, excluded.matches),
             peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.peak_score, excluded.score, players.score),
             best_streak = MAX(COALESCE(players.best_streak, 0), excluded.best_streak),
             current_streak = excluded.current_streak,
             updated_at = CURRENT_TIMESTAMP
     `;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line.includes('|')) continue;
+    return new Promise(resolve => {
+        db.run(sql, [steamId, name, region, wins, matches, score, peakScore, bestStreak, currentStreak], resolve);
+    });
+}
 
-        const parts = line.split('|');
-        let steamId = parts[0].trim();
-        if (!/^\d{17}$/.test(steamId)) continue;
+app.post('/api/score', async (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey;
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
 
-        let name = "Player";
-        let score = 1000;
-        let peakScore = 1000;
-        let wins = 0;
-        let matches = 0;
-        let bestStreak = 0;
-        let currentStreak = 0;
-
-        for (let part of parts.slice(1)) {
-            let [k, ...v] = part.split(':');
-            let val = v.join(':').trim();
-
-            if (k === 'Username' && val) name = val.replace(/<[^>]*>/g, '').trim() || "Player";
-            if (k === 'CurrentElo') score = parseInt(val) || 1000;
-            if (k === 'PeakElo') peakScore = parseInt(val) || score;
-            if (k === 'Wins') wins = parseInt(val) || 0;
-            if (k === 'TotalMatches') matches = parseInt(val) || 0;
-            if (k === 'BestWinStreak') bestStreak = parseInt(val) || 0;
-            if (k === 'CurrentWinStreak') currentStreak = parseInt(val) || 0;
+    if (typeof req.body === 'string' && req.body.includes('|')) {
+        const lines = req.body.trim().split('\n');
+        for (let line of lines) {
+            const parts = line.split('|');
+            const pObj = { steamId: parts[0], rawLine: line };
+            await processReport(pObj);
         }
+        lastDbUpdateTime = Date.now();
+        return res.json({ status: "success", count: lines.length });
+    }
 
-        await new Promise(resolve => {
-            db.run(sql, [steamId, name, wins, matches, score, peakScore, bestStreak, currentStreak], resolve);
-        });
+    if (Array.isArray(req.body)) {
+        for (const item of req.body) await processReport(item);
+    } else {
+        await processReport(req.body);
     }
 
     lastDbUpdateTime = Date.now();
@@ -294,17 +337,16 @@ app.post('/api/score', async (req, res) => {
 });
 
 app.all('/api/admin/clear-all-data', (req, res) => {
-    const apiKey = req.body?.apiKey || req.query?.key || req.headers['x-api-key'];
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.query.apiKey || req.query.key;
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).send("Forbidden: API Key 错误");
 
     db.run("DELETE FROM players", (err) => {
         if (err) return res.status(500).send("清空失败: " + err.message);
-        db.run("DELETE FROM bans", () => {});
         lastDbUpdateTime = Date.now();
-        res.send("<h1>✅ 数据库与封禁名单已彻底清空！</h1><p><a href='/'>返回前台</a></p>");
+        res.send("<h1>✅ 数据库已彻底清空！</h1><p><a href='/'>返回排行榜</a></p>");
     });
 });
 
 app.listen(PORT, () => {
-    console.log(`[Server] 服务已成功启动在端口 ${PORT}！`);
+    console.log(`[Server] 排行榜服务器已在端口 ${PORT} 启动！`);
 });
