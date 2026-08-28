@@ -17,13 +17,12 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.text({ limit: '100mb' }));
 app.use(express.static(__dirname));
 
-// 🛡️ 智能清洗名字（只移除 HTML/富文本标签，完美保留玩家的特殊符号、标点与 Emoji）
 function cleanName(name) {
     if (!name) return "Player";
     let str = String(name)
-        .replace(/<[^>]*>/g, '')              // 移除 HTML/Unity 富文本标签
-        .replace(/\[[0-9a-fA-F]{6}\]/g, '')   // 移除颜色十六进制标签
-        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '') // 移除不可见零宽字符
+        .replace(/<[^>]*>/g, '')              
+        .replace(/\[[0-9a-fA-F]{6}\]/g, '')   
+        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '') 
         .trim();
     return str || "Player";
 }
