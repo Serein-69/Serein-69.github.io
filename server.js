@@ -92,7 +92,7 @@ app.get('/api/leaderboard/export', (req, res) => {
 });
 
 app.get('/api/leaderboard', (req, res) => {
-    const limit = parseInt(req.query.limit) || 1000;
+    const limit = parseInt(req.query.limit) || 50000;
     const regionFilter = (req.query.region || '').trim().toUpperCase();
 
     let query = `
@@ -221,6 +221,7 @@ app.get('/api/player/:steamId', (req, res) => {
     );
 });
 
+// ⚡ 极速比赛结算接收
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
