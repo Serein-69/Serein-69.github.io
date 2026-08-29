@@ -47,8 +47,9 @@
         .lang-select {
             background: #181b26; color: #fff; border: 1px solid var(--border-color);
             padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; outline: none;
+            cursor: pointer; outline: none; transition: border-color 0.2s;
         }
+        .lang-select:hover { border-color: var(--accent-pink); }
 
         .container { max-width: 1400px; margin: 0 auto; padding: 30px 20px; }
 
@@ -70,6 +71,7 @@
         }
         .hero-top-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
         .hero-badge { color: var(--accent-pink); font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+        
         .hero-author-badge {
             background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35);
             padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
@@ -199,7 +201,6 @@
     </nav>
 
     <div class="container">
-        <!-- 选项卡切换 -->
         <div class="tab-bar">
             <button class="tab-btn active" id="tabLeaderboard" onclick="switchTab('leaderboard')">🏆 <span data-i18n="tab_ladder">World Leaderboard</span></button>
             <button class="tab-btn" id="tabBans" onclick="switchTab('bans')">🚫 <span data-i18n="tab_bans">Banned Players</span></button>
@@ -209,7 +210,7 @@
             <div class="hero-top-row">
                 <div class="hero-badge" data-i18n="hero_badge">Global Competitive Ladder</div>
                 <div class="hero-author-badge">
-                    <span>由 Serein & Albion 联合制作</span>
+                    <span data-i18n="author_badge">由 Serein & Albion 联合制作</span>
                 </div>
             </div>
             <h1 class="hero-title"><span data-i18n="hero_title_1">CRAB GAME</span><br><span data-i18n="hero_title_2">GLOBAL RANKINGS</span></h1>
@@ -246,7 +247,6 @@
             </div>
         </section>
 
-        <!-- 排行榜主面板 -->
         <div class="main-grid" id="leaderboardSection">
             <div class="card">
                 <div class="card-header">
@@ -297,7 +297,6 @@
             </div>
         </div>
 
-        <!-- 🚫 封禁名单面板 -->
         <div class="card" id="bansSection" style="display: none; margin-bottom: 40px;">
             <div class="card-header">
                 <div class="card-title" style="color: #ef4444;">
@@ -340,6 +339,7 @@
             en: {
                 tab_ladder: "World Leaderboard", tab_bans: "Banned Players", bans_title: "Banned Players",
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
+                author_badge: "Crafted by Serein & Albion",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
                 th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR", th_peak: "Peak MMR", th_streak: "Streak", th_wl: "W - L", th_winrate: "Win Rate",
@@ -350,6 +350,7 @@
             zh: {
                 tab_ladder: "全球天梯榜", tab_bans: "封禁黑名单", bans_title: "全服被封禁玩家名单",
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
+                author_badge: "由 Serein & Albion 联合制作",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
                 th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "当前分", th_peak: "历史最高分", th_streak: "最高连胜", th_wl: "胜 - 负", th_winrate: "胜率",
@@ -360,6 +361,7 @@
             ru: {
                 tab_ladder: "Таблица лидеров", tab_bans: "Заблокированные", bans_title: "Список забаненных игроков",
                 hero_badge: "Глобальная рейтинговая система", hero_title_1: "CRAB GAME", hero_title_2: "ТАБЛИЦА ЛИДЕРОВ",
+                author_badge: "Создано Serein и Albion",
                 stat_players: "Игроков в рейтинге", stat_matches: "Всего матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация активна",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
                 th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR", th_peak: "Пик MMR", th_streak: "Серия", th_wl: "П - П", th_winrate: "% Побед",
@@ -370,6 +372,7 @@
             tr: {
                 tab_ladder: "Dünya Sıralaması", tab_bans: "Yasaklananlar", bans_title: "Yasaklanan Oyuncular Listesi",
                 hero_badge: "Küresel Rekabet Sıralaması", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
+                author_badge: "Serein & Albion Tarafından Geliştirildi",
                 stat_players: "Dereceli Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek MMR", stat_status: "Canlı Senkronizasyon",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
                 th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR", th_peak: "Zirve MMR", th_streak: "Seri", th_wl: "G - M", th_winrate: "Kazanma Oranı",
