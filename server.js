@@ -3,7 +3,6 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
-const zlib = require('zlib');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -72,12 +71,12 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 版本检测
+
 app.get('/api/leaderboard/version', (req, res) => {
     res.json({ status: "success", version: lastDbUpdateTime });
 });
 
-// 📦 导出全量数据（供 VPS 极速下载）
+）
 app.get('/api/leaderboard/export', (req, res) => {
     db.all("SELECT player_id, name, score, peak_score, wins, matches, best_streak, current_streak FROM players ORDER BY score DESC, wins DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
@@ -85,7 +84,7 @@ app.get('/api/leaderboard/export', (req, res) => {
         let lines = [];
         for (let p of (rows || [])) {
             let losses = Math.max(0, p.matches - p.wins);
-            let safeName = String(p.name).replace(/\|/g, ' ');
+            let safeName = String(p.name).replace(/\|/g, ' ').replace(/[\r\n]/g, '');
             let line = `${p.player_id}|Username:${safeName}|CurrentElo:${p.score}|PeakElo:${p.peak_score || p.score}|TotalMatches:${p.matches}|Wins:${p.wins}|Losses:${losses}|BestWinStreak:${p.best_streak || 0}|CurrentWinStreak:${p.current_streak || 0}`;
             lines.push(line);
         }
@@ -94,7 +93,7 @@ app.get('/api/leaderboard/export', (req, res) => {
     });
 });
 
-// 🏆 排行榜列表查询接口（带智能分页，默认取前 300 名秒开，手机打开 0.05 秒！）
+
 app.get('/api/leaderboard', (req, res) => {
     const limit = parseInt(req.query.limit) || 1000;
     const regionFilter = (req.query.region || '').trim().toUpperCase();
@@ -131,7 +130,7 @@ app.get('/api/bans', (req, res) => {
     });
 });
 
-// 🚫 接收 banlogs 上报
+
 app.post('/api/mod/ban-batch', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -182,7 +181,7 @@ app.post('/api/mod/ban-batch', async (req, res) => {
     res.json({ status: "success", count: successCount });
 });
 
-// 🏆 单玩家全网总排名计算
+
 app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -214,7 +213,7 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     });
 });
 
-// 🔍 单玩家基础数据查询
+
 app.get('/api/player/:steamId', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -229,7 +228,7 @@ app.get('/api/player/:steamId', (req, res) => {
     );
 });
 
-// ⚡ 极速比赛结算接收（支持百字节微型包，弱网秒传）
+
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -240,9 +239,8 @@ app.post('/api/score', async (req, res) => {
     } else if (req.body.rawLine) {
         lines = [req.body.rawLine];
     } else if (req.body.steamId && req.body.score !== undefined) {
-        // 支持纯微型 JSON 包
         let pId = String(req.body.steamId);
-        let pName = String(req.body.name || "Player");
+        let pName = String(req.body.name || "Player").trim();
         let pScore = parseInt(req.body.score) || 1000;
         let pWins = parseInt(req.body.wins) || 0;
         let pMatches = parseInt(req.body.matches) || 0;
@@ -251,7 +249,7 @@ app.post('/api/score', async (req, res) => {
             INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
             VALUES (?, ?, 'GLOBAL', ?, ?, ?, ?, 0, 0, CURRENT_TIMESTAMP)
             ON CONFLICT(player_id) DO UPDATE SET
-                name = CASE WHEN excluded.name != 'Player' THEN excluded.name ELSE players.name END,
+                name = CASE WHEN excluded.name != 'Player' AND excluded.name != '' THEN excluded.name ELSE players.name END,
                 score = excluded.score,
                 wins = excluded.wins,
                 matches = excluded.matches,
@@ -268,11 +266,11 @@ app.post('/api/score', async (req, res) => {
         INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
         VALUES (?, ?, 'GLOBAL', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(player_id) DO UPDATE SET
-            name = CASE WHEN excluded.name != 'Player' AND excluded.name != 'Unknown' THEN excluded.name ELSE players.name END,
+            name = CASE WHEN excluded.name != 'Player' AND excluded.name != '' THEN excluded.name ELSE players.name END,
             score = excluded.score,
             wins = excluded.wins,
             matches = excluded.matches,
-            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.peak_score, excluded.score, players.score),
+            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.score, players.score),
             best_streak = MAX(COALESCE(players.best_streak, 0), excluded.best_streak),
             current_streak = excluded.current_streak,
             updated_at = CURRENT_TIMESTAMP
@@ -298,7 +296,7 @@ app.post('/api/score', async (req, res) => {
             let [k, ...v] = part.split(':');
             let val = v.join(':').trim();
 
-            if (k === 'Username' && val) name = val.replace(/<[^>]*>/g, '').trim() || "Player";
+            if (k === 'Username' && val) name = val; 
             if (k === 'CurrentElo') score = parseInt(val) || 1000;
             if (k === 'PeakElo') peakScore = parseInt(val) || score;
             if (k === 'Wins') wins = parseInt(val) || 0;
