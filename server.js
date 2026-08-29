@@ -71,12 +71,10 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-
 app.get('/api/leaderboard/version', (req, res) => {
     res.json({ status: "success", version: lastDbUpdateTime });
 });
 
-）
 app.get('/api/leaderboard/export', (req, res) => {
     db.all("SELECT player_id, name, score, peak_score, wins, matches, best_streak, current_streak FROM players ORDER BY score DESC, wins DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
@@ -92,7 +90,6 @@ app.get('/api/leaderboard/export', (req, res) => {
         res.send(lines.join('\n'));
     });
 });
-
 
 app.get('/api/leaderboard', (req, res) => {
     const limit = parseInt(req.query.limit) || 1000;
@@ -122,14 +119,12 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// 🚫 封禁名单查询
 app.get('/api/bans', (req, res) => {
     db.all("SELECT player_id, player_name, admin_name, reason, duration, ban_date FROM bans ORDER BY ban_date DESC LIMIT 500", [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
         res.json({ status: "success", data: rows || [] });
     });
 });
-
 
 app.post('/api/mod/ban-batch', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
@@ -171,7 +166,7 @@ app.post('/api/mod/ban-batch', async (req, res) => {
         }
 
         if (/^\d{17}$/.test(steamId)) {
-            await new Promise(resolve => {
+            await new Promise((resolve) => {
                 db.run(sql, [steamId, player, admin, reason, duration], resolve);
             });
             successCount++;
@@ -180,7 +175,6 @@ app.post('/api/mod/ban-batch', async (req, res) => {
 
     res.json({ status: "success", count: successCount });
 });
-
 
 app.get('/api/player/:steamId/rank', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
@@ -213,7 +207,6 @@ app.get('/api/player/:steamId/rank', (req, res) => {
     });
 });
 
-
 app.get('/api/player/:steamId', (req, res) => {
     const steamId = String(req.params.steamId || '').trim();
     if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
@@ -227,7 +220,6 @@ app.get('/api/player/:steamId', (req, res) => {
         }
     );
 });
-
 
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
@@ -257,7 +249,7 @@ app.post('/api/score', async (req, res) => {
                 updated_at = CURRENT_TIMESTAMP
         `;
 
-        await new Promise(resolve => db.run(sql, [pId, pName, pWins, pMatches, pScore, pScore], resolve));
+        await new Promise((resolve) => db.run(sql, [pId, pName, pWins, pMatches, pScore, pScore], resolve));
         lastDbUpdateTime = Date.now();
         return res.json({ status: "success" });
     }
@@ -270,7 +262,7 @@ app.post('/api/score', async (req, res) => {
             score = excluded.score,
             wins = excluded.wins,
             matches = excluded.matches,
-            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.score, players.score),
+            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.peak_score, excluded.score, players.score),
             best_streak = MAX(COALESCE(players.best_streak, 0), excluded.best_streak),
             current_streak = excluded.current_streak,
             updated_at = CURRENT_TIMESTAMP
@@ -296,7 +288,7 @@ app.post('/api/score', async (req, res) => {
             let [k, ...v] = part.split(':');
             let val = v.join(':').trim();
 
-            if (k === 'Username' && val) name = val; 
+            if (k === 'Username' && val) name = val;
             if (k === 'CurrentElo') score = parseInt(val) || 1000;
             if (k === 'PeakElo') peakScore = parseInt(val) || score;
             if (k === 'Wins') wins = parseInt(val) || 0;
@@ -305,7 +297,7 @@ app.post('/api/score', async (req, res) => {
             if (k === 'CurrentWinStreak') currentStreak = parseInt(val) || 0;
         }
 
-        await new Promise(resolve => {
+        await new Promise((resolve) => {
             db.run(sql, [steamId, name, wins, matches, score, peakScore, bestStreak, currentStreak], resolve);
         });
     }
@@ -353,5 +345,5 @@ app.all('/api/admin/clear-all-data', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`[Server] 服务已在端口 ${PORT} 启动！`);
+    console.log(`[Server] 服务已成功启动在端口 ${PORT}！`);
 });
