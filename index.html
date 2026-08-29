@@ -247,6 +247,7 @@
             </div>
         </section>
 
+        <!-- 排行榜主面板 -->
         <div class="main-grid" id="leaderboardSection">
             <div class="card">
                 <div class="card-header">
@@ -297,6 +298,7 @@
             </div>
         </div>
 
+        <!-- 🚫 封禁名单面板 -->
         <div class="card" id="bansSection" style="display: none; margin-bottom: 40px;">
             <div class="card-header">
                 <div class="card-title" style="color: #ef4444;">
@@ -482,6 +484,7 @@
             } catch (err) {}
         }
 
+        // 🎯【原生安全文本渲染】：防止任何特殊符号破坏网页
         function renderBans() {
             const tbody = document.getElementById('bansBody');
             const t = I18N[currentLang] || I18N.zh;
@@ -494,14 +497,40 @@
 
             cachedBans.forEach(b => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="font-family:monospace; color:var(--text-muted);">${b.player_id}</td>
-                    <td style="font-weight:700; color:#fff;">${b.player_name}</td>
-                    <td style="color:#f87171;">${b.reason}</td>
-                    <td><span class="ban-status-badge">${b.duration}</span></td>
-                    <td style="color:var(--text-muted);">${b.admin_name}</td>
-                    <td style="color:var(--text-muted); font-size:0.8rem;">${new Date(b.ban_date).toLocaleString()}</td>
-                `;
+                
+                const tdId = document.createElement('td');
+                tdId.style.fontFamily = "monospace";
+                tdId.style.color = "var(--text-muted)";
+                tdId.textContent = b.player_id;
+
+                const tdName = document.createElement('td');
+                tdName.style.fontWeight = "700";
+                tdName.style.color = "#fff";
+                tdName.textContent = b.player_name;
+
+                const tdReason = document.createElement('td');
+                tdReason.style.color = "#f87171";
+                tdReason.textContent = b.reason;
+
+                const tdDur = document.createElement('td');
+                tdDur.innerHTML = `<span class="ban-status-badge">${b.duration}</span>`;
+
+                const tdAdmin = document.createElement('td');
+                tdAdmin.style.color = "var(--text-muted)";
+                tdAdmin.textContent = b.admin_name;
+
+                const tdDate = document.createElement('td');
+                tdDate.style.color = "var(--text-muted)";
+                tdDate.style.fontSize = "0.8rem";
+                tdDate.textContent = new Date(b.ban_date).toLocaleString();
+
+                tr.appendChild(tdId);
+                tr.appendChild(tdName);
+                tr.appendChild(tdReason);
+                tr.appendChild(tdDur);
+                tr.appendChild(tdAdmin);
+                tr.appendChild(tdDate);
+
                 tbody.appendChild(tr);
             });
         }
@@ -515,10 +544,10 @@
                 const top1 = cachedPlayers[0];
                 document.getElementById('statTopMMR').innerText = (top1.peak_score || top1.score).toLocaleString();
                 const top1Tier = getTierInfo(top1.score);
-                document.getElementById('mvpName').innerText = top1.name;
+                document.getElementById('mvpName').textContent = top1.name;
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
-                document.getElementById('mvpAvatar').innerText = (top1.name || "P").substring(0, 1).toUpperCase();
+                document.getElementById('mvpAvatar').textContent = (top1.name || "P").substring(0, 1).toUpperCase();
                 document.getElementById('mvpExtra').innerHTML = `<span>Peak: <b>${top1.peak_score || top1.score}</b></span> <span>Streak: <b>🔥${top1.best_streak || 0}</b></span>`;
             }
         }
@@ -552,22 +581,58 @@
                 const winRateFormatted = (parseFloat(p.winRate) || 0).toFixed(1);
 
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="rank-num ${rankClass}">${rankIcon}</td>
-                    <td>🌐</td>
-                    <td>
-                        <div class="player-cell" title="${p.name}">
-                            <div class="player-avatar">${(p.name || "P").substring(0, 1).toUpperCase()}</div>
-                            <span class="player-name-text">${p.name}</span>
-                        </div>
-                    </td>
-                    <td><span class="tier-tag ${tier.class}">${tier.name}</span></td>
-                    <td><span class="score-badge">${p.score.toLocaleString()}</span></td>
-                    <td><span class="peak-badge">${(p.peak_score || p.score).toLocaleString()}</span></td>
-                    <td><span class="streak-badge">🔥 ${p.best_streak || 0}</span></td>
-                    <td style="color:var(--text-muted); font-size:0.82rem; font-weight:700;">${p.wins || 0} / ${losses}</td>
-                    <td><span style="color:#10b981; font-weight:800; font-size:0.92rem;">${winRateFormatted}%</span></td>
-                `;
+                
+                const tdRank = document.createElement('td');
+                tdRank.className = `rank-num ${rankClass}`;
+                tdRank.textContent = rankIcon;
+
+                const tdRegion = document.createElement('td');
+                tdRegion.textContent = "🌐";
+
+                const tdPlayer = document.createElement('td');
+                const pCell = document.createElement('div');
+                pCell.className = "player-cell";
+                const pAvatar = document.createElement('div');
+                pAvatar.className = "player-avatar";
+                pAvatar.textContent = (p.name || "P").substring(0, 1).toUpperCase();
+                const pText = document.createElement('span');
+                pText.className = "player-name-text";
+                pText.textContent = p.name; // 🎯 原汁原味纯文本显示任何特殊符号/Emoji
+                pCell.appendChild(pAvatar);
+                pCell.appendChild(pText);
+                tdPlayer.appendChild(pCell);
+
+                const tdTier = document.createElement('td');
+                tdTier.innerHTML = `<span class="tier-tag ${tier.class}">${tier.name}</span>`;
+
+                const tdScore = document.createElement('td');
+                tdScore.innerHTML = `<span class="score-badge">${p.score.toLocaleString()}</span>`;
+
+                const tdPeak = document.createElement('td');
+                tdPeak.innerHTML = `<span class="peak-badge">${(p.peak_score || p.score).toLocaleString()}</span>`;
+
+                const tdStreak = document.createElement('td');
+                tdStreak.innerHTML = `<span class="streak-badge">🔥 ${p.best_streak || 0}</span>`;
+
+                const tdWL = document.createElement('td');
+                tdWL.style.color = "var(--text-muted)";
+                tdWL.style.fontSize = "0.82rem";
+                tdWL.style.fontWeight = "700";
+                tdWL.textContent = `${p.wins || 0} / ${losses}`;
+
+                const tdWinRate = document.createElement('td');
+                tdWinRate.innerHTML = `<span style="color:#10b981; font-weight:800; font-size:0.92rem;">${winRateFormatted}%</span>`;
+
+                tr.appendChild(tdRank);
+                tr.appendChild(tdRegion);
+                tr.appendChild(tdPlayer);
+                tr.appendChild(tdTier);
+                tr.appendChild(tdScore);
+                tr.appendChild(tdPeak);
+                tr.appendChild(tdStreak);
+                tr.appendChild(tdWL);
+                tr.appendChild(tdWinRate);
+
                 tbody.appendChild(tr);
             });
 
