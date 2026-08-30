@@ -18,7 +18,6 @@
             --gold: #ffd700;
             --silver: #e2e8f0;
             --bronze: #d97706;
-            --danger: #ef4444;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
         }
@@ -52,17 +51,6 @@
         .lang-select:hover { border-color: var(--accent-pink); }
 
         .container { max-width: 1400px; margin: 0 auto; padding: 30px 20px; }
-
-        .tab-bar {
-            display: flex; gap: 10px; margin-bottom: 25px;
-        }
-        .tab-btn {
-            background: #151824; border: 1px solid var(--border-color); color: var(--text-muted);
-            padding: 10px 24px; border-radius: 8px; font-size: 0.95rem; font-weight: 800;
-            cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
-        }
-        .tab-btn:hover { background: #1f2336; color: #fff; }
-        .tab-btn.active { background: var(--primary-gradient); color: #fff; border-color: transparent; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4); }
 
         .hero {
             border-radius: 16px; overflow: hidden;
@@ -134,11 +122,6 @@
         .tier-silver { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid #cbd5e1; }
         .tier-bronze { background: rgba(217, 119, 6, 0.15); color: #f97316; border: 1px solid #f97316; }
 
-        .ban-status-badge {
-            background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444;
-            padding: 3px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 800;
-        }
-
         .pagination-container {
             display: flex; justify-content: space-between; align-items: center;
             margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--border-color);
@@ -201,11 +184,6 @@
     </nav>
 
     <div class="container">
-        <div class="tab-bar">
-            <button class="tab-btn active" id="tabLeaderboard" onclick="switchTab('leaderboard')">🏆 <span data-i18n="tab_ladder">World Leaderboard</span></button>
-            <button class="tab-btn" id="tabBans" onclick="switchTab('bans')">🚫 <span data-i18n="tab_bans">Banned Players</span></button>
-        </div>
-
         <section class="hero">
             <div class="hero-top-row">
                 <div class="hero-badge" data-i18n="hero_badge">Global Competitive Ladder</div>
@@ -297,28 +275,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- 🚫 封禁名单面板 -->
-        <div class="card" id="bansSection" style="display: none; margin-bottom: 40px;">
-            <div class="card-header">
-                <div class="card-title" style="color: #ef4444;">
-                    <span>🚫</span> <span data-i18n="bans_title">Banned Players List</span>
-                </div>
-            </div>
-            <table class="ranking-table">
-                <thead>
-                    <tr>
-                        <th>SteamID</th>
-                        <th data-i18n="th_player">Player</th>
-                        <th data-i18n="th_reason">Reason</th>
-                        <th data-i18n="th_duration">Duration</th>
-                        <th data-i18n="th_admin">Banned By</th>
-                        <th data-i18n="th_date">Date (UTC)</th>
-                    </tr>
-                </thead>
-                <tbody id="bansBody"></tbody>
-            </table>
-        </div>
     </div>
 
     <footer>
@@ -332,54 +288,44 @@
     <script>
         const API_URL = "https://serein-69githubio-production.up.railway.app/api";
         let cachedPlayers = [];
-        let cachedBans = [];
         let currentPage = 1;
         const pageSize = 10;
-        let currentTab = 'leaderboard';
 
         const I18N = {
             en: {
-                tab_ladder: "World Leaderboard", tab_bans: "Banned Players", bans_title: "Banned Players",
                 hero_badge: "Global Competitive Ladder", hero_title_1: "CRAB GAME", hero_title_2: "GLOBAL RANKINGS",
                 author_badge: "Crafted by Serein & Albion",
                 stat_players: "Ranked Players", stat_matches: "Total Matches", stat_top_mmr: "Highest MMR", stat_status: "Live Sync Active",
                 table_title: "World Rankings", search_ph: "Search player...",
                 th_rank: "#", th_region: "Region", th_player: "Player", th_tier: "Rank Tier", th_mmr: "MMR", th_peak: "Peak MMR", th_streak: "Streak", th_wl: "W - L", th_winrate: "Win Rate",
-                th_reason: "Reason", th_duration: "Duration", th_admin: "Admin", th_date: "Ban Date",
-                unbound_label: "Unbound", no_player: "No players found", no_bans: "No banned players recorded.",
+                unbound_label: "Unbound", no_player: "No players found",
                 pg_showing: "Showing", pg_of: "of", pg_players: "players", pg_prev: "Prev", pg_next: "Next"
             },
             zh: {
-                tab_ladder: "全球天梯榜", tab_bans: "封禁黑名单", bans_title: "全服被封禁玩家名单",
                 hero_badge: "全球天梯排位系统", hero_title_1: "CRAB GAME 螃蟹游戏", hero_title_2: "全球天梯排行榜",
                 author_badge: "由 Serein & Albion 联合制作",
                 stat_players: "已注册玩家", stat_matches: "总计比赛场次", stat_top_mmr: "全服最高评分", stat_status: "实时同步中",
                 table_title: "全球天梯榜单", search_ph: "搜索玩家昵称...",
                 th_rank: "排名", th_region: "地区", th_player: "玩家", th_tier: "段位", th_mmr: "当前分", th_peak: "历史最高分", th_streak: "最高连胜", th_wl: "胜 - 负", th_winrate: "胜率",
-                th_reason: "封禁原因", th_duration: "封禁时长", th_admin: "执行管理员", th_date: "封禁时间",
-                unbound_label: "未绑定", no_player: "未找到玩家", no_bans: "当前暂无被封禁玩家。",
+                unbound_label: "未绑定", no_player: "未找到玩家",
                 pg_showing: "显示", pg_of: "/", pg_players: "名玩家", pg_prev: "上一页", pg_next: "下一页"
             },
             ru: {
-                tab_ladder: "Таблица лидеров", tab_bans: "Заблокированные", bans_title: "Список забаненных игроков",
                 hero_badge: "Глобальная рейтинговая система", hero_title_1: "CRAB GAME", hero_title_2: "ТАБЛИЦА ЛИДЕРОВ",
                 author_badge: "Создано Serein и Albion",
                 stat_players: "Игроков в рейтинге", stat_matches: "Всего матчей", stat_top_mmr: "Высший MMR", stat_status: "Синхронизация активна",
                 table_title: "Мировой рейтинг", search_ph: "Поиск игрока...",
                 th_rank: "#", th_region: "Регион", th_player: "Игрок", th_tier: "Ранг", th_mmr: "MMR", th_peak: "Пик MMR", th_streak: "Серия", th_wl: "П - П", th_winrate: "% Побед",
-                th_reason: "Причина", th_duration: "Срок", th_admin: "Админ", th_date: "Дата",
-                unbound_label: "Не привязан", no_player: "Игроки не найдены", no_bans: "Нет забаненных игроков.",
+                unbound_label: "Не привязан", no_player: "Игроки не найдены",
                 pg_showing: "Показано", pg_of: "из", pg_players: "игроков", pg_prev: "Назад", pg_next: "Вперед"
             },
             tr: {
-                tab_ladder: "Dünya Sıralaması", tab_bans: "Yasaklananlar", bans_title: "Yasaklanan Oyuncular Listesi",
                 hero_badge: "Küresel Rekabet Sıralaması", hero_title_1: "CRAB GAME", hero_title_2: "DÜNYA SIRALAMASI",
                 author_badge: "Serein & Albion Tarafından Geliştirildi",
                 stat_players: "Dereceli Oyuncu", stat_matches: "Toplam Maç", stat_top_mmr: "En Yüksek MMR", stat_status: "Canlı Senkronizasyon",
                 table_title: "Dünya Sıralaması", search_ph: "Oyuncu ara...",
                 th_rank: "#", th_region: "Bölge", th_player: "Oyuncu", th_tier: "Aşama", th_mmr: "MMR", th_peak: "Zirve MMR", th_streak: "Seri", th_wl: "G - M", th_winrate: "Kazanma Oranı",
-                th_reason: "Sebep", th_duration: "Süre", th_admin: "Yetkili", th_date: "Tarih",
-                unbound_label: "Bağlı Değil", no_player: "Oyuncu bulunamadı", no_bans: "Yasaklanan oyuncu yok.",
+                unbound_label: "Bağlı Değil", no_player: "Oyuncu bulunamadı",
                 pg_showing: "Gösterilen", pg_of: "/", pg_players: "oyuncu", pg_prev: "Önceki", pg_next: "Sonraki"
             }
         };
@@ -390,21 +336,6 @@
         };
 
         let currentLang = localStorage.getItem('crab_ranking_lang') || 'zh';
-
-        function switchTab(tab) {
-            currentTab = tab;
-            document.getElementById('tabLeaderboard').className = `tab-btn ${tab === 'leaderboard' ? 'active' : ''}`;
-            document.getElementById('tabBans').className = `tab-btn ${tab === 'bans' ? 'active' : ''}`;
-
-            if (tab === 'leaderboard') {
-                document.getElementById('leaderboardSection').style.display = 'grid';
-                document.getElementById('bansSection').style.display = 'none';
-            } else {
-                document.getElementById('leaderboardSection').style.display = 'none';
-                document.getElementById('bansSection').style.display = 'block';
-                loadBans();
-            }
-        }
 
         function getTierInfo(score) {
             const dict = TIER_NAMES[currentLang] || TIER_NAMES.zh;
@@ -456,7 +387,6 @@
 
             updateHeroStats();
             renderUI(document.getElementById('searchInput').value);
-            if (currentTab === 'bans') renderBans();
         }
 
         async function loadLeaderboard() {
@@ -473,68 +403,6 @@
             } catch (err) {}
         }
 
-        async function loadBans() {
-            try {
-                const res = await fetch(`${API_URL}/bans`);
-                const result = await res.json();
-                if (result.status === "success") {
-                    cachedBans = result.data || [];
-                    renderBans();
-                }
-            } catch (err) {}
-        }
-
-        // 🎯【原生安全文本渲染】：防止任何特殊符号破坏网页
-        function renderBans() {
-            const tbody = document.getElementById('bansBody');
-            const t = I18N[currentLang] || I18N.zh;
-            tbody.innerHTML = "";
-
-            if (cachedBans.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">${t.no_bans}</td></tr>`;
-                return;
-            }
-
-            cachedBans.forEach(b => {
-                const tr = document.createElement('tr');
-                
-                const tdId = document.createElement('td');
-                tdId.style.fontFamily = "monospace";
-                tdId.style.color = "var(--text-muted)";
-                tdId.textContent = b.player_id;
-
-                const tdName = document.createElement('td');
-                tdName.style.fontWeight = "700";
-                tdName.style.color = "#fff";
-                tdName.textContent = b.player_name;
-
-                const tdReason = document.createElement('td');
-                tdReason.style.color = "#f87171";
-                tdReason.textContent = b.reason;
-
-                const tdDur = document.createElement('td');
-                tdDur.innerHTML = `<span class="ban-status-badge">${b.duration}</span>`;
-
-                const tdAdmin = document.createElement('td');
-                tdAdmin.style.color = "var(--text-muted)";
-                tdAdmin.textContent = b.admin_name;
-
-                const tdDate = document.createElement('td');
-                tdDate.style.color = "var(--text-muted)";
-                tdDate.style.fontSize = "0.8rem";
-                tdDate.textContent = new Date(b.ban_date).toLocaleString();
-
-                tr.appendChild(tdId);
-                tr.appendChild(tdName);
-                tr.appendChild(tdReason);
-                tr.appendChild(tdDur);
-                tr.appendChild(tdAdmin);
-                tr.appendChild(tdDate);
-
-                tbody.appendChild(tr);
-            });
-        }
-
         function updateHeroStats() {
             document.getElementById('statPlayers').innerText = cachedPlayers.length.toLocaleString();
             let totalMatches = cachedPlayers.reduce((acc, p) => acc + (p.matches || 0), 0);
@@ -544,10 +412,10 @@
                 const top1 = cachedPlayers[0];
                 document.getElementById('statTopMMR').innerText = (top1.peak_score || top1.score).toLocaleString();
                 const top1Tier = getTierInfo(top1.score);
-                document.getElementById('mvpName').textContent = top1.name;
+                document.getElementById('mvpName').innerText = top1.name;
                 document.getElementById('mvpTierBox').innerHTML = `<span class="tier-tag ${top1Tier.class}">${top1Tier.name}</span>`;
                 document.getElementById('mvpScore').innerText = top1.score.toLocaleString();
-                document.getElementById('mvpAvatar').textContent = (top1.name || "P").substring(0, 1).toUpperCase();
+                document.getElementById('mvpAvatar').innerText = (top1.name || "P").substring(0, 1).toUpperCase();
                 document.getElementById('mvpExtra').innerHTML = `<span>Peak: <b>${top1.peak_score || top1.score}</b></span> <span>Streak: <b>🔥${top1.best_streak || 0}</b></span>`;
             }
         }
@@ -597,7 +465,7 @@
                 pAvatar.textContent = (p.name || "P").substring(0, 1).toUpperCase();
                 const pText = document.createElement('span');
                 pText.className = "player-name-text";
-                pText.textContent = p.name; // 🎯 原汁原味纯文本显示任何特殊符号/Emoji
+                pText.textContent = p.name;
                 pCell.appendChild(pAvatar);
                 pCell.appendChild(pText);
                 tdPlayer.appendChild(pCell);
