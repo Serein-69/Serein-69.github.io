@@ -13,6 +13,17 @@ process.on('unhandledRejection', (reason) => console.error('[Anti-Crash]:', reas
 
 let lastDbUpdateTime = Date.now();
 
+const onlineHeartbeats = new Map();
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, lastTime] of onlineHeartbeats.entries()) {
+        if (now - lastTime > 90000) { 
+            onlineHeartbeats.delete(id);
+        }
+    }
+}, 10000);
+
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
@@ -69,6 +80,16 @@ db.serialize(() => {
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/api/online', (req, res) => {
+    const steamId = String(req.query.id || req.query.steamId || '').trim();
+    if (steamId && steamId !== '0') {
+        onlineHeartbeats.set(steamId, Date.now());
+    }
+    
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(String(Math.max(1, onlineHeartbeats.size)));
 });
 
 app.get('/api/leaderboard/version', (req, res) => {
@@ -221,7 +242,6 @@ app.get('/api/player/:steamId', (req, res) => {
     );
 });
 
-// ⚡ 极速比赛结算接收
 app.post('/api/score', async (req, res) => {
     const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
     if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
@@ -263,7 +283,7 @@ app.post('/api/score', async (req, res) => {
             score = excluded.score,
             wins = excluded.wins,
             matches = excluded.matches,
-            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.peak_score, excluded.score, players.score),
+            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.score, players.score),
             best_streak = MAX(COALESCE(players.best_streak, 0), excluded.best_streak),
             current_streak = excluded.current_streak,
             updated_at = CURRENT_TIMESTAMP
