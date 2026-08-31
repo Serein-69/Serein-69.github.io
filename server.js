@@ -3,7 +3,7 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, Events } = require('discord.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,7 +12,6 @@ const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_8888
 const DISCORD_CONFIG = {
     BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,       
     CHANNEL_ID: process.env.DISCORD_CHANNEL_ID,
-    DISCORD_INVITE_URL: process.env.DISCORD_INVITE_URL || "https://discord.gg/YtDmESXbk2",
     UPDATE_INTERVAL_MS: 8000                        
 };
 
@@ -458,22 +457,11 @@ async function updateDiscordLiveMessage(channel) {
         .setFooter({ text: 'BOT Menu Mod • 自动实时刷新中' })
         .setTimestamp();
 
-    const components = [];
-    if (DISCORD_CONFIG.DISCORD_INVITE_URL && DISCORD_CONFIG.DISCORD_INVITE_URL.startsWith('http')) {
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setLabel('加入官方 Discord')
-                .setStyle(ButtonStyle.Link)
-                .setURL(DISCORD_CONFIG.DISCORD_INVITE_URL)
-        );
-        components.push(row);
-    }
-
     try {
         if (!liveStatusMessage) {
-            liveStatusMessage = await channel.send({ embeds: [statusEmbed], components });
+            liveStatusMessage = await channel.send({ embeds: [statusEmbed], components: [] });
         } else {
-            await liveStatusMessage.edit({ embeds: [statusEmbed], components });
+            await liveStatusMessage.edit({ embeds: [statusEmbed], components: [] });
         }
 
         discordClient.user.setActivity(`在线人数: ${onlineCount} 人`, { type: 3 });
