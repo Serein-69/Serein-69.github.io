@@ -3,6 +3,7 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const app = express();
@@ -12,20 +13,19 @@ const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_8888
 const DISCORD_CONFIG = {
     BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,       
     CHANNEL_ID: process.env.DISCORD_CHANNEL_ID,     
-    UPDATE_INTERVAL_MS: 10000                    
+    UPDATE_INTERVAL_MS: 10000                        
 };
 
 process.on('uncaughtException', (err) => console.error('[Anti-Crash]:', err.message));
 process.on('unhandledRejection', (reason) => console.error('[Anti-Crash]:', reason));
 
 let lastDbUpdateTime = Date.now();
-
 const onlineHeartbeats = new Map();
 
 setInterval(() => {
     const now = Date.now();
-    for (const [id, info] of onlineHeartbeats.entries()) {
-        if (now - info.lastTime > 90000) { 
+    for (const [id, lastTime] of onlineHeartbeats.entries()) {
+        if (now - lastTime > 90000) { 
             onlineHeartbeats.delete(id);
         }
     }
@@ -91,29 +91,8 @@ app.get('/', (req, res) => {
 
 app.get('/api/online', (req, res) => {
     const steamId = String(req.query.id || req.query.steamId || '').trim();
-    const customName = String(req.query.name || req.query.username || '').trim();
-
     if (steamId && steamId !== '0') {
-        let playerName = customName || "BOT User";
-
-        const existing = onlineHeartbeats.get(steamId);
-        if (!customName && existing && existing.name) {
-            playerName = existing.name;
-        }
-
-        onlineHeartbeats.set(steamId, {
-            lastTime: Date.now(),
-            name: playerName
-        });
-
-        if (!customName) {
-            db.get("SELECT name FROM players WHERE player_id = ?", [steamId], (err, row) => {
-                if (row && row.name) {
-                    const current = onlineHeartbeats.get(steamId);
-                    if (current) current.name = row.name;
-                }
-            });
-        }
+        onlineHeartbeats.set(steamId, Date.now());
     }
     
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -428,23 +407,9 @@ discordClient.once('ready', async () => {
 async function updateDiscordLiveMessage(channel) {
     if (!channel) return;
 
-    const onlineCount = onlineHeartbeats.size;
+    const onlineCount = Math.max(1, onlineHeartbeats.size);
     const now = new Date();
     const timeString = now.toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
-
-    let playerListContent = "";
-    if (onlineHeartbeats.size === 0) {
-        playerListContent = "> *当前暂无玩家在线*";
-    } else {
-        const userEntries = Array.from(onlineHeartbeats.entries());
-        playerListContent = userEntries.slice(0, 20).map(([steamId, info], index) => {
-            return `\`${index + 1}.\` **${info.name}** (\`${steamId}\`)`;
-        }).join('\n');
-
-        if (userEntries.length > 20) {
-            playerListContent += `\n> *...以及其他 ${userEntries.length - 20} 位玩家*`;
-        }
-    }
 
     const statusEmbed = new EmbedBuilder()
         .setColor(onlineCount > 0 ? 0x00FF44 : 0xFF4444)
@@ -452,8 +417,6 @@ async function updateDiscordLiveMessage(channel) {
         .setDescription(
             `### 当前菜单在线使用人数\n` +
             `# \`  ${onlineCount} 人在线  \`\n\n` +
-            `### 当前在线玩家列表\n` +
-            `${playerListContent}\n\n` +
             `> **模组状态:** \` 正常运行 (Undetected) \`\n` +
             `> **当前版本:** \` v1.7 \`\n` +
             `> **最后刷新时间:** \` ${timeString} \``
@@ -461,19 +424,31 @@ async function updateDiscordLiveMessage(channel) {
         .setFooter({ text: 'BOT Menu Mod • 自动实时刷新中 (每8秒更新)' })
         .setTimestamp();
 
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel('加入官方 Discord')
+            .setStyle(ButtonStyle.Link)
+            .setURL(DISCORD_CONFIG.DISCORD_INVITE_URL),
+        new ButtonBuilder()
+            .setCustomId('btn_live_status')
+            .setLabel('● 实时自动更新中')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true)
+    );
+
     try {
         if (!liveStatusMessage) {
-            liveStatusMessage = await channel.send({ embeds: [statusEmbed] });
+            liveStatusMessage = await channel.send({ embeds: [statusEmbed], components: [row] });
             console.log('[Discord Bot] 首次卡片消息已发送。');
-        } else {！
-            await liveStatusMessage.edit({ embeds: [statusEmbed] });
+        } else {
+            await liveStatusMessage.edit({ embeds: [statusEmbed], components: [row] });
         }
 
-        discordClient.user.setActivity(`在线人数: ${onlineCount} 人`, { type: 3 }); 
+        discordClient.user.setActivity(`在线人数: ${onlineCount} 人`, { type: 3 });
 
     } catch (err) {
         if (err.code === 10008) {
-            liveStatusMessage = null; 
+            liveStatusMessage = null;
         }
     }
 }
