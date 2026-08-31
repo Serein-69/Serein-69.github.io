@@ -13,9 +13,9 @@ const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_8888
 // 🌟 1. Discord 机器人配置
 // =========================================================================
 const DISCORD_CONFIG = {
-    BOT_TOKEN: process.env.DISCORD_BOT_TOKEN || "MTM0MzYwNDIzOTMyMjMyMDk4OA.GaW6lx.ThouK74MuBFs0j5SHScKAIMlSnzZpaoxXERn7A", // 机器人Token
-    CHANNEL_ID: "1486669922594459658",                                   // 频道ID
-    UPDATE_INTERVAL_MS: 8000                                                // 刷新间隔（8秒）
+    BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,       // 从云端环境变量安全读取
+    CHANNEL_ID: process.env.DISCORD_CHANNEL_ID,     // 从云端环境变量安全读取
+    UPDATE_INTERVAL_MS: 8000                        // 刷新间隔（8秒）
 };
 
 process.on('uncaughtException', (err) => console.error('[Anti-Crash]:', err.message));
