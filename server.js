@@ -3,22 +3,34 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_888888";
+
+// =========================================================================
+// 🌟 1. Discord 机器人配置
+// =========================================================================
+const DISCORD_CONFIG = {
+    BOT_TOKEN: process.env.DISCORD_BOT_TOKEN || "MTM0MzYwNDIzOTMyMjMyMDk4OA.GaW6lx.ThouK74MuBFs0j5SHScKAIMlSnzZpaoxXERn7A", // 机器人Token
+    CHANNEL_ID: "1486669922594459658",                                   // 频道ID
+    UPDATE_INTERVAL_MS: 8000                                                // 刷新间隔（8秒）
+};
 
 process.on('uncaughtException', (err) => console.error('[Anti-Crash]:', err.message));
 process.on('unhandledRejection', (reason) => console.error('[Anti-Crash]:', reason));
 
 let lastDbUpdateTime = Date.now();
 
+// 🌟 内存中记录在线玩家的详细信息：Map<SteamID, { lastTime: 时间戳, name: 玩家名字 }>
 const onlineHeartbeats = new Map();
 
+// 定时清理 90 秒内没有心跳的离线玩家
 setInterval(() => {
     const now = Date.now();
-    for (const [id, lastTime] of onlineHeartbeats.entries()) {
-        if (now - lastTime > 90000) { 
+    for (const [id, info] of onlineHeartbeats.entries()) {
+        if (now - info.lastTime > 90000) { 
             onlineHeartbeats.delete(id);
         }
     }
@@ -78,14 +90,40 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
 });
 
+// =========================================================================
+// 🌟 2. 路由 API 接口（接收打卡时同步记录玩家名字）
+// =========================================================================
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/api/online', (req, res) => {
     const steamId = String(req.query.id || req.query.steamId || '').trim();
+    const customName = String(req.query.name || req.query.username || '').trim();
+
     if (steamId && steamId !== '0') {
-        onlineHeartbeats.set(steamId, Date.now());
+        let playerName = customName || "BOT User";
+
+        const existing = onlineHeartbeats.get(steamId);
+        if (!customName && existing && existing.name) {
+            playerName = existing.name;
+        }
+
+        onlineHeartbeats.set(steamId, {
+            lastTime: Date.now(),
+            name: playerName
+        });
+
+        // 如果客户端没传名字，尝试从排行榜数据库里读取
+        if (!customName) {
+            db.get("SELECT name FROM players WHERE player_id = ?", [steamId], (err, row) => {
+                if (row && row.name) {
+                    const current = onlineHeartbeats.get(steamId);
+                    if (current) current.name = row.name;
+                }
+            });
+        }
     }
     
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -365,6 +403,113 @@ app.all('/api/admin/clear-all-data', (req, res) => {
     });
 });
 
+// =========================================================================
+// 🌟 3. Discord 实时在线监控（支持显示具体在线玩家列表 + 原地编辑消息）
+// =========================================================================
+
+const discordClient = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages
+    ]
+});
+
+let liveStatusMessage = null;
+
+discordClient.once('ready', async () => {
+    console.log(`[Discord Bot] 机器人已登录成功: ${discordClient.user.tag}`);
+
+    try {
+        const channel = await discordClient.channels.fetch(DISCORD_CONFIG.CHANNEL_ID).catch(() => null);
+        if (!channel) {
+            console.error(`[Discord Bot] 找不到频道 ID: ${DISCORD_CONFIG.CHANNEL_ID}`);
+            return;
+        }
+
+        // 复用上一次发送过的消息，避免重启服务导致发多条消息
+        const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+        if (messages) {
+            liveStatusMessage = messages.find(m => m.author.id === discordClient.user.id);
+        }
+
+        updateDiscordLiveMessage(channel);
+        setInterval(() => updateDiscordLiveMessage(channel), DISCORD_CONFIG.UPDATE_INTERVAL_MS);
+
+    } catch (err) {
+        console.error('[Discord Bot] 初始化监听异常:', err.message);
+    }
+});
+
+async function updateDiscordLiveMessage(channel) {
+    if (!channel) return;
+
+    const onlineCount = onlineHeartbeats.size;
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+
+    // 🌟 格式化当前在线的具体玩家列表（名字 + SteamID）
+    let playerListContent = "";
+    if (onlineHeartbeats.size === 0) {
+        playerListContent = "> *当前暂无玩家在线*";
+    } else {
+        const userEntries = Array.from(onlineHeartbeats.entries());
+        // 取前 20 位玩家展示，防止超出 Discord 消息字符限制
+        playerListContent = userEntries.slice(0, 20).map(([steamId, info], index) => {
+            return `\`${index + 1}.\` **${info.name}** (\`${steamId}\`)`;
+        }).join('\n');
+
+        if (userEntries.length > 20) {
+            playerListContent += `\n> *...以及其他 ${userEntries.length - 20} 位玩家*`;
+        }
+    }
+
+    // 构建炫彩卡片
+    const statusEmbed = new EmbedBuilder()
+        .setColor(onlineCount > 0 ? 0x00FF44 : 0xFF4444)
+        .setTitle('✦ BOT MENU — 实时在线监控 ✦')
+        .setDescription(
+            `### 🟢 当前菜单在线使用人数\n` +
+            `# \`  ${onlineCount} 人在线  \`\n\n` +
+            `### 👥 当前在线玩家列表\n` +
+            `${playerListContent}\n\n` +
+            `> **模组状态:** \` 正常运行 (Undetected) \`\n` +
+            `> **当前版本:** \` v1.7 \`\n` +
+            `> **最后刷新时间:** \` ${timeString} \``
+        )
+        .setFooter({ text: 'BOT Menu Mod • 自动实时刷新中 (每8秒更新)' })
+        .setTimestamp();
+
+    try {
+        if (!liveStatusMessage) {
+            liveStatusMessage = await channel.send({ embeds: [statusEmbed] });
+            console.log('[Discord Bot] 首次卡片消息已发送。');
+        } else {
+            // 🌟 核心：直接对已有的那条消息进行原地 edit() 修改！
+            await liveStatusMessage.edit({ embeds: [statusEmbed] });
+        }
+
+        // 机器人的 Discord 个人状态同步显示当前人数
+        discordClient.user.setActivity(`🔥 在线人数: ${onlineCount} 人`, { type: 3 }); // 3 = Watching
+
+    } catch (err) {
+        if (err.code === 10008) {
+            liveStatusMessage = null; // 消息被手动删除了则重置
+        }
+    }
+}
+
+// 启动机器人
+if (DISCORD_CONFIG.BOT_TOKEN && !DISCORD_CONFIG.BOT_TOKEN.includes("填入你的")) {
+    discordClient.login(DISCORD_CONFIG.BOT_TOKEN).catch((err) => {
+        console.error('[Discord Bot] 登录失败，请检查 Token 是否正确:', err.message);
+    });
+} else {
+    console.log('[Discord Bot] 未配置有效 Token，Discord 在线同步已跳过。');
+}
+
+// =========================================================================
+// 🌟 启动后端 Express 服务
+// =========================================================================
 app.listen(PORT, () => {
     console.log(`[Server] 服务已成功启动在端口 ${PORT}！`);
 });
