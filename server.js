@@ -3,7 +3,7 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
-const { Client, GatewayIntentBits, EmbedBuilder, Events } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, Events, ActivityType } = require('discord.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,7 +12,7 @@ const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_8888
 const DISCORD_CONFIG = {
     BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,       
     CHANNEL_ID: process.env.DISCORD_CHANNEL_ID,
-    UPDATE_INTERVAL_MS: 8000                        
+    UPDATE_INTERVAL_MS: 10000                        
 };
 
 process.on('uncaughtException', (err) => console.error('[Anti-Crash]:', err.message));
@@ -91,6 +91,9 @@ app.get('/', (req, res) => {
 app.get('/api/online', (req, res) => {
     const steamId = String(req.query.id || req.query.steamId || '').trim();
     const customName = String(req.query.name || req.query.username || '').trim();
+    
+    const isHidden = req.query.hidden === '1' || req.query.hidden === 'true' || 
+                     req.query.hide === '1' || req.query.hide === 'true';
 
     if (steamId && steamId !== '0') {
         let playerName = customName || "BOT User";
@@ -101,7 +104,8 @@ app.get('/api/online', (req, res) => {
 
         onlineHeartbeats.set(steamId, {
             lastTime: Date.now(),
-            name: playerName
+            name: playerName,
+            hidden: isHidden
         });
 
         if (!customName) {
@@ -381,13 +385,13 @@ app.post('/api/mod/bind', async (req, res) => {
 
 app.all('/api/admin/clear-all-data', (req, res) => {
     const apiKey = req.body?.apiKey || req.query?.key || req.headers['x-api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).send("Forbidden: API Key 错误");
+    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).send("Forbidden: Invalid API Key");
 
     db.run("DELETE FROM players", (err) => {
-        if (err) return res.status(500).send("清空失败: " + err.message);
+        if (err) return res.status(500).send("Clear failed: " + err.message);
         db.run("DELETE FROM bans", () => {});
         lastDbUpdateTime = Date.now();
-        res.send("<h1>✅ 数据库与封禁名单已彻底清空！</h1><p><a href='/'>返回前台</a></p>");
+        res.send("<h1>✅ Database and Ban List Cleared!</h1><p><a href='/'>Back to Home</a></p>");
     });
 });
 
@@ -401,7 +405,7 @@ const discordClient = new Client({
 let liveStatusMessage = null;
 
 discordClient.once(Events.ClientReady, async () => {
-    console.log(`[Discord Bot] 登录成功: ${discordClient.user.tag}`);
+    console.log(`[Discord Bot] Logged in successfully as: ${discordClient.user.tag}`);
 
     try {
         const channel = await discordClient.channels.fetch(DISCORD_CONFIG.CHANNEL_ID).catch(() => null);
@@ -416,45 +420,61 @@ discordClient.once(Events.ClientReady, async () => {
         setInterval(() => updateDiscordLiveMessage(channel), DISCORD_CONFIG.UPDATE_INTERVAL_MS);
 
     } catch (err) {
-        console.error('[Discord Bot] 初始化异常:', err.message);
+        console.error('[Discord Bot] Initialization Error:', err.message);
     }
 });
 
 async function updateDiscordLiveMessage(channel) {
     if (!channel) return;
 
-    const onlineCount = onlineHeartbeats.size;
+    const totalOnlineCount = onlineHeartbeats.size;
     const now = new Date();
-    const timeString = now.toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+    const timeString = now.toTimeString().split(' ')[0] + " UTC";
 
-    let playerListContent = "";
-    if (onlineHeartbeats.size === 0) {
-        playerListContent = "> *当前暂无玩家在线*";
-    } else {
-        const userEntries = Array.from(onlineHeartbeats.entries());
-        playerListContent = userEntries.slice(0, 20).map(([steamId, info], index) => {
-            const displayName = info.name || "BOT User";
-            return `\`${index + 1}.\` **${displayName}** (\`${steamId}\`)`;
-        }).join('\n');
+    let visiblePlayersList = [];
+    let hiddenPlayersCount = 0;
 
-        if (userEntries.length > 20) {
-            playerListContent += `\n> *...以及其他 ${userEntries.length - 20} 位玩家*`;
+    for (const [steamId, info] of onlineHeartbeats.entries()) {
+        if (info.hidden) {
+            hiddenPlayersCount++;
+        } else {
+            visiblePlayersList.push({ steamId, name: info.name || "BOT User" });
         }
     }
 
+    let playerListContent = "";
+
+    if (totalOnlineCount === 0) {
+        playerListContent = "> *No players currently online*";
+    } else {
+        let lines = visiblePlayersList.slice(0, 20).map((player, index) => {
+            return `\`${index + 1}.\` **${player.name}** (\`${player.steamId}\`)`;
+        });
+
+        if (visiblePlayersList.length > 20) {
+            lines.push(`> *...and ${visiblePlayersList.length - 20} more visible players*`);
+        }
+
+        if (hiddenPlayersCount > 0) {
+            lines.push(`> **Hidden / Incognito Players:** \`${hiddenPlayersCount}\` player(s)`);
+        }
+
+        playerListContent = lines.join('\n');
+    }
+
     const statusEmbed = new EmbedBuilder()
-        .setColor(onlineCount > 0 ? 0x00FF44 : 0xFF4444)
-        .setTitle('✦ BOT MENU — 实时在线监控 ✦')
+        .setColor(totalOnlineCount > 0 ? 0x00FF44 : 0xFF4444)
+        .setTitle('✦ BOT MENU — LIVE STATUS MONITOR ✦')
         .setDescription(
-            `### 当前菜单在线使用人数\n` +
-            `# \`  ${onlineCount} 人在线  \`\n\n` +
-            `### 当前在线玩家列表\n` +
+            `### Active Online Users\n` +
+            `# \`  ${totalOnlineCount} Online  \`\n\n` +
+            `### Current Online Player List\n` +
             `${playerListContent}\n\n` +
-            `> **模组状态:** \` 正常运行 (Undetected) \`\n` +
-            `> **当前版本:** \` v1.7 \`\n` +
-            `> **最后刷新时间:** \` ${timeString} \``
+            `> **Mod Status:** \` Undetected (Active) \`\n` +
+            `> **Version:** \` v1.7 \`\n` +
+            `> **Last Updated:** \` ${timeString} \``
         )
-        .setFooter({ text: 'BOT Menu Mod • 自动实时刷新中' })
+        .setFooter({ text: 'BOT Menu Mod • Live Auto-Update' })
         .setTimestamp();
 
     try {
@@ -464,7 +484,7 @@ async function updateDiscordLiveMessage(channel) {
             await liveStatusMessage.edit({ embeds: [statusEmbed], components: [] });
         }
 
-        discordClient.user.setActivity(`在线人数: ${onlineCount} 人`, { type: 3 });
+        discordClient.user.setActivity(`${totalOnlineCount} Online User(s)`, { type: ActivityType.Watching });
 
     } catch (err) {
         if (err.code === 10008) {
@@ -475,10 +495,10 @@ async function updateDiscordLiveMessage(channel) {
 
 if (DISCORD_CONFIG.BOT_TOKEN && !DISCORD_CONFIG.BOT_TOKEN.includes("填入你的")) {
     discordClient.login(DISCORD_CONFIG.BOT_TOKEN).catch((err) => {
-        console.error('[Discord Bot] 登录失败:', err.message);
+        console.error('[Discord Bot] Login Failed:', err.message);
     });
 }
 
 app.listen(PORT, () => {
-    console.log(`[Server] 服务已成功启动在端口 ${PORT}！`);
+    console.log(`[Server] Server successfully started on port ${PORT}!`);
 });
