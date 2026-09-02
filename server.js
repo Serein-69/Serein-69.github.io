@@ -148,6 +148,26 @@ app.get('/api/cloud/download/:id', (req, res) => {
     });
 });
 
+app.post('/api/cloud/delete/:id', (req, res) => {
+    const configId = parseInt(req.params.id);
+    const steamId = String(req.body.steamId || req.query.steamId || '').trim();
+
+    if (!configId) return res.status(400).json({ status: "error", message: "Invalid ID" });
+
+    db.get("SELECT author_steam_id FROM cloud_configs WHERE id = ?", [configId], (err, row) => {
+        if (err || !row) return res.status(404).json({ status: "error", message: "Config not found" });
+
+        if (row.author_steam_id && steamId && row.author_steam_id !== steamId) {
+            return res.status(403).json({ status: "error", message: "Unauthorized" });
+        }
+
+        db.run("DELETE FROM cloud_configs WHERE id = ?", [configId], function (err) {
+            if (err) return res.status(500).json({ status: "error" });
+            res.json({ status: "success" });
+        });
+    });
+});
+
 app.get('/api/online', (req, res) => {
     const steamId = String(req.query.id || req.query.steamId || '').trim();
     const customName = String(req.query.name || req.query.username || '').trim();
