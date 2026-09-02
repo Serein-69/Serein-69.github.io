@@ -12,7 +12,7 @@ const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_8888
 const DISCORD_CONFIG = {
     BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,       
     CHANNEL_ID: process.env.DISCORD_CHANNEL_ID,
-    UPDATE_INTERVAL_MS: 8000                        
+    UPDATE_INTERVAL_MS: 10000                       
 };
 
 process.on('uncaughtException', (err) => console.error('[Anti-Crash]:', err.message));
