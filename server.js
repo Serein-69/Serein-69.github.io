@@ -15,8 +15,8 @@ const DISCORD_CONFIG = {
     UPDATE_INTERVAL_MS: 10000                       
 };
 
-process.on('uncaughtException', (err) => console.error('[Anti-Crash]:', err.message));
-process.on('unhandledRejection', (reason) => console.error('[Anti-Crash]:', reason));
+process.on('uncaughtException', (err) => console.error(err.message));
+process.on('unhandledRejection', (reason) => console.error(reason));
 
 let lastDbUpdateTime = Date.now();
 const onlineHeartbeats = new Map();
@@ -166,4 +166,97 @@ app.get('/api/online', (req, res) => {
     res.send(String(Math.max(1, onlineHeartbeats.size)));
 });
 
-app.listen(PORT, () => console.log(`[Server] Service online at port ${PORT}`));
+const discordClient = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages
+    ]
+});
+
+let liveStatusMessage = null;
+
+discordClient.once(Events.ClientReady, async () => {
+    try {
+        const channel = await discordClient.channels.fetch(DISCORD_CONFIG.CHANNEL_ID).catch(() => null);
+        if (!channel) return;
+
+        const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+        if (messages) {
+            liveStatusMessage = messages.find(m => m.author.id === discordClient.user.id);
+        }
+
+        updateDiscordLiveMessage(channel);
+        setInterval(() => updateDiscordLiveMessage(channel), DISCORD_CONFIG.UPDATE_INTERVAL_MS);
+    } catch (err) { }
+});
+
+async function updateDiscordLiveMessage(channel) {
+    if (!channel) return;
+
+    const totalOnlineCount = onlineHeartbeats.size;
+    const now = new Date();
+    const timeString = now.toTimeString().split(' ')[0] + " UTC";
+
+    let visiblePlayersList = [];
+    let hiddenPlayersCount = 0;
+
+    for (const [steamId, info] of onlineHeartbeats.entries()) {
+        if (info.hidden) {
+            hiddenPlayersCount++;
+        } else {
+            visiblePlayersList.push({ steamId, name: info.name || "BOT User" });
+        }
+    }
+
+    let playerListContent = "";
+
+    if (totalOnlineCount === 0) {
+        playerListContent = "> *No players currently online*";
+    } else {
+        let lines = visiblePlayersList.slice(0, 20).map((player, index) => {
+            return `\`${index + 1}.\` **${player.name}** (\`${player.steamId}\`)`;
+        });
+
+        if (visiblePlayersList.length > 20) {
+            lines.push(`> *...and ${visiblePlayersList.length - 20} more visible players*`);
+        }
+
+        if (hiddenPlayersCount > 0) {
+            lines.push(`> 🔒 **Hidden / Incognito Players:** \`${hiddenPlayersCount}\` player(s)`);
+        }
+
+        playerListContent = lines.join('\n');
+    }
+
+    const statusEmbed = new EmbedBuilder()
+        .setColor(totalOnlineCount > 0 ? 0x00FF44 : 0xFF4444)
+        .setTitle('✦ BOT MENU — LIVE STATUS MONITOR ✦')
+        .setDescription(
+            `### Active Online Users\n` +
+            `# \`  ${totalOnlineCount} Online  \`\n\n` +
+            `### Current Online Player List\n` +
+            `${playerListContent}\n\n` +
+            `> **Mod Status:** \` Undetected (Active) \`\n` +
+            `> **Version:** \` v1.8 \`\n` +
+            `> **Last Updated:** \` ${timeString} \``
+        )
+        .setFooter({ text: 'BOT Menu Mod • Live Auto-Update' })
+        .setTimestamp();
+
+    try {
+        if (!liveStatusMessage) {
+            liveStatusMessage = await channel.send({ embeds: [statusEmbed], components: [] });
+        } else {
+            await liveStatusMessage.edit({ embeds: [statusEmbed], components: [] });
+        }
+        discordClient.user.setActivity(`${totalOnlineCount} Online User(s)`, { type: ActivityType.Watching });
+    } catch (err) {
+        if (err.code === 10008) liveStatusMessage = null;
+    }
+}
+
+if (DISCORD_CONFIG.BOT_TOKEN && !DISCORD_CONFIG.BOT_TOKEN.includes("填入你的")) {
+    discordClient.login(DISCORD_CONFIG.BOT_TOKEN).catch(() => {});
+}
+
+app.listen(PORT, () => console.log(`[Server] Online on port ${PORT}`));
