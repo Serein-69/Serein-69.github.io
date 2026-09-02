@@ -12,7 +12,7 @@ const SERVER_SECRET_KEY = process.env.SERVER_SECRET_KEY || "CRAB_SECRET_KEY_8888
 const DISCORD_CONFIG = {
     BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,       
     CHANNEL_ID: process.env.DISCORD_CHANNEL_ID,
-    UPDATE_INTERVAL_MS: 10000                        
+    UPDATE_INTERVAL_MS: 8000                        
 };
 
 process.on('uncaughtException', (err) => console.error('[Anti-Crash]:', err.message));
@@ -69,436 +69,101 @@ db.serialize(() => {
     `);
 
     db.run(`
-        CREATE TABLE IF NOT EXISTS bans (
+        CREATE TABLE IF NOT EXISTS cloud_chat (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            player_id TEXT,
-            player_name TEXT NOT NULL,
-            admin_name TEXT DEFAULT 'Admin',
-            reason TEXT DEFAULT 'Violation of rules',
-            duration TEXT DEFAULT 'Permanent',
-            ban_date DATETIME DEFAULT CURRENT_TIMESTAMP
+            steam_id TEXT NOT NULL,
+            user_name TEXT NOT NULL,
+            message TEXT NOT NULL,
+            is_plus INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 
-    db.run(`CREATE INDEX IF NOT EXISTS idx_score ON players(score DESC, wins DESC);`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_pid ON players(player_id);`);
+    db.run(`
+        CREATE TABLE IF NOT EXISTS cloud_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            config_name TEXT NOT NULL,
+            author_name TEXT NOT NULL,
+            author_steam_id TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            config_data TEXT NOT NULL,
+            downloads INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
 });
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+app.get('/api/chat/messages', (req, res) => {
+    db.all("SELECT id, steam_id, user_name, message, is_plus, strftime('%H:%M', created_at, 'localtime') as time_str FROM cloud_chat ORDER BY id DESC LIMIT 40", [], (err, rows) => {
+        if (err) return res.status(500).json({ status: "error", message: err.message });
+        res.json({ status: "success", data: (rows || []).reverse() });
+    });
+});
+
+app.post('/api/chat/send', (req, res) => {
+    const steamId = String(req.body.steamId || '').trim();
+    const userName = String(req.body.userName || 'Anonymous').trim();
+    const message = String(req.body.message || '').trim();
+    const isPlus = req.body.isPlus ? 1 : 0;
+
+    if (!steamId || !message) return res.status(400).json({ status: "error", message: "Empty message" });
+
+    const safeMsg = message.substring(0, 150);
+
+    db.run("INSERT INTO cloud_chat (steam_id, user_name, message, is_plus) VALUES (?, ?, ?, ?)", [steamId, userName, safeMsg, isPlus], function (err) {
+        if (err) return res.status(500).json({ status: "error" });
+        res.json({ status: "success", messageId: this.lastID });
+    });
+});
+
+app.get('/api/cloud/configs', (req, res) => {
+    db.all("SELECT id, config_name, author_name, author_steam_id, description, downloads, strftime('%Y-%m-%d', created_at, 'localtime') as date_str FROM cloud_configs ORDER BY id DESC LIMIT 100", [], (err, rows) => {
+        if (err) return res.status(500).json({ status: "error" });
+        res.json({ status: "success", data: rows || [] });
+    });
+});
+
+app.post('/api/cloud/upload', (req, res) => {
+    const configName = String(req.body.configName || 'Custom Profile').trim().substring(0, 30);
+    const authorName = String(req.body.authorName || 'User').trim().substring(0, 20);
+    const authorSteamId = String(req.body.authorSteamId || '0').trim();
+    const description = String(req.body.description || '').trim().substring(0, 100);
+    const configData = String(req.body.configData || '').trim();
+
+    if (!configData) return res.status(400).json({ status: "error", message: "Config data is empty" });
+
+    const sql = `INSERT INTO cloud_configs (config_name, author_name, author_steam_id, description, config_data) VALUES (?, ?, ?, ?, ?)`;
+    db.run(sql, [configName, authorName, authorSteamId, description, configData], function (err) {
+        if (err) return res.status(500).json({ status: "error" });
+        res.json({ status: "success", configId: this.lastID });
+    });
+});
+
+app.get('/api/cloud/download/:id', (req, res) => {
+    const configId = parseInt(req.params.id);
+    db.get("SELECT config_name, config_data FROM cloud_configs WHERE id = ?", [configId], (err, row) => {
+        if (err || !row) return res.status(404).json({ status: "error", message: "Config not found" });
+        db.run("UPDATE cloud_configs SET downloads = downloads + 1 WHERE id = ?", [configId]);
+        res.json({ status: "success", name: row.config_name, data: row.config_data });
+    });
 });
 
 app.get('/api/online', (req, res) => {
     const steamId = String(req.query.id || req.query.steamId || '').trim();
     const customName = String(req.query.name || req.query.username || '').trim();
-    
-    const isHidden = req.query.hidden === '1' || req.query.hidden === 'true' || 
-                     req.query.hide === '1' || req.query.hide === 'true';
+    const isHidden = req.query.hidden === '1' || req.query.hidden === 'true';
 
     if (steamId && steamId !== '0') {
         let playerName = customName || "BOT User";
-        const existing = onlineHeartbeats.get(steamId);
-        if (!customName && existing && existing.name) {
-            playerName = existing.name;
-        }
-
         onlineHeartbeats.set(steamId, {
             lastTime: Date.now(),
             name: playerName,
             hidden: isHidden
         });
-
-        if (!customName) {
-            db.get("SELECT name FROM players WHERE player_id = ?", [steamId], (err, row) => {
-                if (row && row.name) {
-                    const cur = onlineHeartbeats.get(steamId);
-                    if (cur) cur.name = row.name;
-                }
-            });
-        }
     }
     
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(String(Math.max(1, onlineHeartbeats.size)));
 });
 
-app.get('/api/leaderboard/version', (req, res) => {
-    res.json({ status: "success", version: lastDbUpdateTime });
-});
-
-app.get('/api/leaderboard/export', (req, res) => {
-    db.all("SELECT player_id, name, score, peak_score, wins, matches, best_streak, current_streak FROM players ORDER BY score DESC, wins DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        
-        let lines = [];
-        for (let p of (rows || [])) {
-            let losses = Math.max(0, p.matches - p.wins);
-            let safeName = String(p.name).replace(/\|/g, ' ').replace(/[\r\n]/g, '');
-            let line = `${p.player_id}|Username:${safeName}|CurrentElo:${p.score}|PeakElo:${p.peak_score || p.score}|TotalMatches:${p.matches}|Wins:${p.wins}|Losses:${losses}|BestWinStreak:${p.best_streak || 0}|CurrentWinStreak:${p.current_streak || 0}`;
-            lines.push(line);
-        }
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.send(lines.join('\n'));
-    });
-});
-
-app.get('/api/leaderboard', (req, res) => {
-    const limit = parseInt(req.query.limit) || 50000;
-    const regionFilter = (req.query.region || '').trim().toUpperCase();
-
-    let query = `
-        SELECT player_id, name, region, wins, matches, score,
-               COALESCE(peak_score, score) as peak_score,
-               COALESCE(best_streak, 0) as best_streak,
-               COALESCE(current_streak, 0) as current_streak,
-               ROUND((CAST(wins AS FLOAT) / CAST(CASE WHEN matches = 0 THEN 1 ELSE matches END AS FLOAT)) * 100, 1) as winRate
-        FROM players 
-    `;
-    const params = [];
-
-    if (regionFilter && regionFilter !== 'GLOBAL' && regionFilter !== 'ALL') {
-        query += ` WHERE region = ? `;
-        params.push(regionFilter);
-    }
-
-    query += ` ORDER BY score DESC, wins DESC LIMIT ? `;
-    params.push(limit);
-
-    db.all(query, params, (err, rows) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", data: rows || [] });
-    });
-});
-
-app.get('/api/bans', (req, res) => {
-    db.all("SELECT player_id, player_name, admin_name, reason, duration, ban_date FROM bans ORDER BY ban_date DESC LIMIT 500", [], (err, rows) => {
-        if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", data: rows || [] });
-    });
-});
-
-app.post('/api/mod/ban-batch', async (req, res) => {
-    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    const rawContent = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-    if (!rawContent || !rawContent.trim()) return res.json({ status: "success", count: 0 });
-
-    const logBlocks = rawContent.split(/===BAN_LOG_SPLIT===/g);
-    let successCount = 0;
-
-    const sql = `
-        INSERT INTO bans (player_id, player_name, admin_name, reason, duration, ban_date)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `;
-
-    for (let block of logBlocks) {
-        if (!block.trim()) continue;
-
-        let admin = "Admin";
-        let player = "Player";
-        let reason = "Violation of server rules";
-        let duration = "Permanent";
-        let steamId = "";
-
-        const lines = block.trim().split('\n');
-        for (let line of lines) {
-            let l = line.trim();
-            if (l.startsWith("Admin =")) admin = l.substring(7).trim();
-            if (l.startsWith("Player =")) player = l.substring(8).trim();
-            if (l.startsWith("Reason =")) reason = l.substring(8).trim();
-            if (l.startsWith("Duration =")) duration = l.substring(10).trim();
-        }
-
-        let m = player.match(/(\d{17})/);
-        if (m) {
-            steamId = m[1];
-            player = player.replace(steamId, '').replace(/[,\s]+$/g, '').trim() || "Banned Player";
-        }
-
-        if (/^\d{17}$/.test(steamId)) {
-            await new Promise((resolve) => {
-                db.run(sql, [steamId, player, admin, reason, duration], resolve);
-            });
-            successCount++;
-        }
-    }
-
-    res.json({ status: "success", count: successCount });
-});
-
-app.get('/api/player/:steamId/rank', (req, res) => {
-    const steamId = String(req.params.steamId || '').trim();
-    if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
-
-    const sql = `
-        WITH RankedPlayers AS (
-            SELECT 
-                player_id, score, wins, matches, peak_score, best_streak,
-                ROW_NUMBER() OVER (ORDER BY score DESC, wins DESC, id ASC) as global_rank
-            FROM players
-        )
-        SELECT * FROM RankedPlayers WHERE player_id = ?
-    `;
-
-    db.get(sql, [steamId], (err, row) => {
-        if (err || !row) return res.status(404).json({ status: "not_found" });
-        
-        res.json({
-            status: "success",
-            data: {
-                rank: row.global_rank,
-                score: row.score,
-                peakScore: row.peak_score || row.score,
-                wins: row.wins,
-                matches: row.matches,
-                bestStreak: row.best_streak || 0
-            }
-        });
-    });
-});
-
-app.get('/api/player/:steamId', (req, res) => {
-    const steamId = String(req.params.steamId || '').trim();
-    if (!steamId) return res.status(400).json({ status: "error", message: "Missing SteamID" });
-
-    db.get(
-        "SELECT player_id, name, region, wins, matches, score, COALESCE(peak_score, score) as peak_score, COALESCE(best_streak, 0) as best_streak FROM players WHERE player_id = ?",
-        [steamId],
-        (err, row) => {
-            if (err || !row) return res.status(404).json({ status: "not_found" });
-            res.json({ status: "success", data: row });
-        }
-    );
-});
-
-app.post('/api/score', async (req, res) => {
-    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    let lines = [];
-    if (typeof req.body === 'string' && req.body.includes('|')) {
-        lines = req.body.trim().split('\n');
-    } else if (req.body.rawLine) {
-        lines = [req.body.rawLine];
-    } else if (req.body.steamId && req.body.score !== undefined) {
-        let pId = String(req.body.steamId);
-        let pName = String(req.body.name || "Player").trim();
-        let pScore = parseInt(req.body.score) || 1000;
-        let pWins = parseInt(req.body.wins) || 0;
-        let pMatches = parseInt(req.body.matches) || 0;
-
-        const sql = `
-            INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
-            VALUES (?, ?, 'GLOBAL', ?, ?, ?, ?, 0, 0, CURRENT_TIMESTAMP)
-            ON CONFLICT(player_id) DO UPDATE SET
-                name = CASE WHEN excluded.name != 'Player' AND excluded.name != '' THEN excluded.name ELSE players.name END,
-                score = excluded.score,
-                wins = excluded.wins,
-                matches = excluded.matches,
-                peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.score, players.score),
-                updated_at = CURRENT_TIMESTAMP
-        `;
-
-        await new Promise((resolve) => db.run(sql, [pId, pName, pWins, pMatches, pScore, pScore], resolve));
-        lastDbUpdateTime = Date.now();
-        return res.json({ status: "success" });
-    }
-
-    const sql = `
-        INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
-        VALUES (?, ?, 'GLOBAL', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(player_id) DO UPDATE SET
-            name = CASE WHEN excluded.name != 'Player' AND excluded.name != '' THEN excluded.name ELSE players.name END,
-            score = excluded.score,
-            wins = excluded.wins,
-            matches = excluded.matches,
-            peak_score = MAX(COALESCE(players.peak_score, 1000), excluded.score, players.score),
-            best_streak = MAX(COALESCE(players.best_streak, 0), excluded.best_streak),
-            current_streak = excluded.current_streak,
-            updated_at = CURRENT_TIMESTAMP
-    `;
-
-    for (let line of lines) {
-        line = line.trim();
-        if (!line.includes('|')) continue;
-
-        const parts = line.split('|');
-        let steamId = parts[0].trim();
-        if (!/^\d{17}$/.test(steamId)) continue;
-
-        let name = "Player";
-        let score = 1000;
-        let peakScore = 1000;
-        let wins = 0;
-        let matches = 0;
-        let bestStreak = 0;
-        let currentStreak = 0;
-
-        for (let part of parts.slice(1)) {
-            let [k, ...v] = part.split(':');
-            let val = v.join(':').trim();
-
-            if (k === 'Username' && val) name = val;
-            if (k === 'CurrentElo') score = parseInt(val) || 1000;
-            if (k === 'PeakElo') peakScore = parseInt(val) || score;
-            if (k === 'Wins') wins = parseInt(val) || 0;
-            if (k === 'TotalMatches') matches = parseInt(val) || 0;
-            if (k === 'BestWinStreak') bestStreak = parseInt(val) || 0;
-            if (k === 'CurrentWinStreak') currentStreak = parseInt(val) || 0;
-        }
-
-        await new Promise((resolve) => {
-            db.run(sql, [steamId, name, wins, matches, score, peakScore, bestStreak, currentStreak], resolve);
-        });
-    }
-
-    lastDbUpdateTime = Date.now();
-    res.json({ status: "success" });
-});
-
-app.post('/api/mod/bind', async (req, res) => {
-    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).json({ status: "error", message: "Forbidden" });
-
-    const cleanSteamId = String(req.body.steamId || "").trim();
-    let manualRegion = (req.body.region || "").trim().toUpperCase();
-    let playerName = String(req.body.name || "Player").trim();
-
-    if (!/^\d{17}$/.test(cleanSteamId)) return res.status(400).json({ status: "error" });
-
-    const sql = `
-        INSERT INTO players (player_id, name, region, wins, matches, score, peak_score, best_streak, current_streak, updated_at)
-        VALUES (?, ?, ?, 0, 0, 1000, 1000, 0, 0, CURRENT_TIMESTAMP)
-        ON CONFLICT(player_id) DO UPDATE SET
-            name = CASE WHEN excluded.name != 'Player' THEN excluded.name ELSE players.name END,
-            region = excluded.region,
-            updated_at = CURRENT_TIMESTAMP
-    `;
-
-    db.run(sql, [cleanSteamId, playerName, manualRegion], function (err) {
-        if (err) return res.status(500).json({ status: "error" });
-        lastDbUpdateTime = Date.now();
-        res.json({ status: "success", region: manualRegion });
-    });
-});
-
-app.all('/api/admin/clear-all-data', (req, res) => {
-    const apiKey = req.body?.apiKey || req.query?.key || req.headers['x-api-key'];
-    if (apiKey !== SERVER_SECRET_KEY) return res.status(403).send("Forbidden: Invalid API Key");
-
-    db.run("DELETE FROM players", (err) => {
-        if (err) return res.status(500).send("Clear failed: " + err.message);
-        db.run("DELETE FROM bans", () => {});
-        lastDbUpdateTime = Date.now();
-        res.send("<h1>✅ Database and Ban List Cleared!</h1><p><a href='/'>Back to Home</a></p>");
-    });
-});
-
-const discordClient = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages
-    ]
-});
-
-let liveStatusMessage = null;
-
-discordClient.once(Events.ClientReady, async () => {
-    console.log(`[Discord Bot] Logged in successfully as: ${discordClient.user.tag}`);
-
-    try {
-        const channel = await discordClient.channels.fetch(DISCORD_CONFIG.CHANNEL_ID).catch(() => null);
-        if (!channel) return;
-
-        const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
-        if (messages) {
-            liveStatusMessage = messages.find(m => m.author.id === discordClient.user.id);
-        }
-
-        updateDiscordLiveMessage(channel);
-        setInterval(() => updateDiscordLiveMessage(channel), DISCORD_CONFIG.UPDATE_INTERVAL_MS);
-
-    } catch (err) {
-        console.error('[Discord Bot] Initialization Error:', err.message);
-    }
-});
-
-async function updateDiscordLiveMessage(channel) {
-    if (!channel) return;
-
-    const totalOnlineCount = onlineHeartbeats.size;
-    const now = new Date();
-    const timeString = now.toTimeString().split(' ')[0] + " UTC";
-
-    let visiblePlayersList = [];
-    let hiddenPlayersCount = 0;
-
-    for (const [steamId, info] of onlineHeartbeats.entries()) {
-        if (info.hidden) {
-            hiddenPlayersCount++;
-        } else {
-            visiblePlayersList.push({ steamId, name: info.name || "BOT User" });
-        }
-    }
-
-    let playerListContent = "";
-
-    if (totalOnlineCount === 0) {
-        playerListContent = "> *No players currently online*";
-    } else {
-        let lines = visiblePlayersList.slice(0, 20).map((player, index) => {
-            return `\`${index + 1}.\` **${player.name}** (\`${player.steamId}\`)`;
-        });
-
-        if (visiblePlayersList.length > 20) {
-            lines.push(`> *...and ${visiblePlayersList.length - 20} more visible players*`);
-        }
-
-        if (hiddenPlayersCount > 0) {
-            lines.push(`> **Hidden / Incognito Players:** \`${hiddenPlayersCount}\` player(s)`);
-        }
-
-        playerListContent = lines.join('\n');
-    }
-
-    const statusEmbed = new EmbedBuilder()
-        .setColor(totalOnlineCount > 0 ? 0x00FF44 : 0xFF4444)
-        .setTitle('✦ BOT MENU — LIVE STATUS MONITOR ✦')
-        .setDescription(
-            `### Active Online Users\n` +
-            `# \`  ${totalOnlineCount} Online  \`\n\n` +
-            `### Current Online Player List\n` +
-            `${playerListContent}\n\n` +
-            `> **Mod Status:** \` Undetected (Active) \`\n` +
-            `> **Version:** \` v1.7 \`\n` +
-            `> **Last Updated:** \` ${timeString} \``
-        )
-        .setFooter({ text: 'BOT Menu Mod • Live Auto-Update' })
-        .setTimestamp();
-
-    try {
-        if (!liveStatusMessage) {
-            liveStatusMessage = await channel.send({ embeds: [statusEmbed], components: [] });
-        } else {
-            await liveStatusMessage.edit({ embeds: [statusEmbed], components: [] });
-        }
-
-        discordClient.user.setActivity(`${totalOnlineCount} Online User(s)`, { type: ActivityType.Watching });
-
-    } catch (err) {
-        if (err.code === 10008) {
-            liveStatusMessage = null;
-        }
-    }
-}
-
-if (DISCORD_CONFIG.BOT_TOKEN && !DISCORD_CONFIG.BOT_TOKEN.includes("填入你的")) {
-    discordClient.login(DISCORD_CONFIG.BOT_TOKEN).catch((err) => {
-        console.error('[Discord Bot] Login Failed:', err.message);
-    });
-}
-
-app.listen(PORT, () => {
-    console.log(`[Server] Server successfully started on port ${PORT}!`);
-});
+app.listen(PORT, () => console.log(`[Server] Service online at port ${PORT}`));
