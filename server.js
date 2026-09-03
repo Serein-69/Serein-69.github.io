@@ -257,7 +257,7 @@ async function updateDiscordLiveMessage(channel) {
             `### Current Online Player List\n` +
             `${playerListContent}\n\n` +
             `> **Mod Status:** \` Undetected (Active) \`\n` +
-            `> **Version:** \` v1.8 \`\n` +
+            `> **Version:** \` v2.0 \`\n` +
             `> **Last Updated:** \` ${timeString} \``
         )
         .setFooter({ text: 'BOT Menu Mod • Live Auto-Update' })
