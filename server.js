@@ -96,7 +96,13 @@ db.serialize(() => {
 app.get('/api/chat/messages', (req, res) => {
     db.all("SELECT id, steam_id, user_name, message, is_plus, strftime('%H:%M', created_at, 'localtime') as time_str FROM cloud_chat ORDER BY id DESC LIMIT 40", [], (err, rows) => {
         if (err) return res.status(500).json({ status: "error", message: err.message });
-        res.json({ status: "success", data: (rows || []).reverse() });
+        
+        const list = (rows || []).map(row => ({
+            ...row,
+            is_online: onlineHeartbeats.has(String(row.steam_id)) ? 1 : 0
+        })).reverse();
+
+        res.json({ status: "success", data: list });
     });
 });
 
@@ -242,7 +248,7 @@ async function updateDiscordLiveMessage(channel) {
         }
 
         if (hiddenPlayersCount > 0) {
-            lines.push(`> 🔒 **Hidden / Incognito Players:** \`${hiddenPlayersCount}\` player(s)`);
+            lines.push(`> **Hidden / Incognito Players:** \`${hiddenPlayersCount}\` player(s)`);
         }
 
         playerListContent = lines.join('\n');
