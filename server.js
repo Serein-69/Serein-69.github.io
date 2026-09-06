@@ -137,6 +137,19 @@ db.serialize(() => {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+    
+    db.run(`
+    CREATE TABLE IF NOT EXISTS cloud_config_likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        config_id INTEGER NOT NULL,
+        steam_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(config_id, steam_id),
+        FOREIGN KEY(config_id)
+            REFERENCES cloud_configs(id)
+            ON DELETE CASCADE
+    )
+`);
 });
 
 app.get('/api/health', (req, res) => {
@@ -243,23 +256,48 @@ app.post('/api/chat/send', (req, res) => {
 });
 
 app.get('/api/cloud/configs', (req, res) => {
+    const steamId = String(
+        req.query.steamId || ''
+    ).trim();
+
     const sql = `
         SELECT
-            id,
-            config_name,
-            author_name,
-            author_steam_id,
-            description,
-            downloads,
-            strftime('%Y-%m-%d', created_at, 'localtime') AS date_str
-        FROM cloud_configs
-        ORDER BY id DESC
+            c.id,
+            c.config_name,
+            c.author_name,
+            c.author_steam_id,
+            c.description,
+            c.downloads,
+            COUNT(l.id) AS likes,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM cloud_config_likes ul
+                    WHERE ul.config_id = c.id
+                    AND ul.steam_id = ?
+                )
+                THEN 1
+                ELSE 0
+            END AS liked,
+            strftime(
+                '%Y-%m-%d',
+                c.created_at,
+                'localtime'
+            ) AS date_str
+        FROM cloud_configs c
+        LEFT JOIN cloud_config_likes l
+            ON l.config_id = c.id
+        GROUP BY c.id
+        ORDER BY c.id DESC
         LIMIT 100
     `;
 
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [steamId], (err, rows) => {
         if (err) {
-            console.error('[Cloud] Config list failed:', err.message);
+            console.error(
+                '[Cloud] Config list failed:',
+                err.message
+            );
 
             return res.status(500).json({
                 status: 'error',
@@ -272,6 +310,131 @@ app.get('/api/cloud/configs', (req, res) => {
             data: rows || []
         });
     });
+});
+
+app.post('/api/cloud/like/:id', (req, res) => {
+    const configId = Number.parseInt(
+        req.params.id,
+        10
+    );
+
+    const body = req.body || {};
+
+    const steamId = String(
+        body.steamId ||
+        req.query.steamId ||
+        ''
+    ).trim();
+
+    const shouldLike =
+        body.like === true ||
+        body.like === 'true' ||
+        body.like === 1 ||
+        body.like === '1';
+
+    if (
+        !Number.isInteger(configId) ||
+        configId <= 0
+    ) {
+        return res.status(400).json({
+            status: 'error',
+            message: 'Invalid ID'
+        });
+    }
+
+    if (!steamId || steamId === '0') {
+        return res.status(401).json({
+            status: 'error',
+            message: 'SteamID is required'
+        });
+    }
+
+    db.get(
+        `
+        SELECT id
+        FROM cloud_configs
+        WHERE id = ?
+        `,
+        [configId],
+        (findErr, config) => {
+            if (findErr) {
+                console.error(
+                    '[Cloud] Like lookup failed:',
+                    findErr.message
+                );
+
+                return res.status(500).json({
+                    status: 'error',
+                    message: 'Database error'
+                });
+            }
+
+            if (!config) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'Config not found'
+                });
+            }
+
+            if (shouldLike) {
+                db.run(
+                    `
+                    INSERT OR IGNORE INTO cloud_config_likes
+                    (config_id, steam_id)
+                    VALUES (?, ?)
+                    `,
+                    [configId, steamId],
+                    function (insertErr) {
+                        if (insertErr) {
+                            console.error(
+                                '[Cloud] Like failed:',
+                                insertErr.message
+                            );
+
+                            return res.status(500).json({
+                                status: 'error',
+                                message: 'Like failed'
+                            });
+                        }
+
+                        return res.json({
+                            status: 'success',
+                            liked: true,
+                            changed: this.changes > 0
+                        });
+                    }
+                );
+            } else {
+                db.run(
+                    `
+                    DELETE FROM cloud_config_likes
+                    WHERE config_id = ?
+                    AND steam_id = ?
+                    `,
+                    [configId, steamId],
+                    function (deleteErr) {
+                        if (deleteErr) {
+                            console.error(
+                                '[Cloud] Unlike failed:',
+                                deleteErr.message
+                            );
+
+                            return res.status(500).json({
+                                status: 'error',
+                                message: 'Unlike failed'
+                            });
+                        }
+
+                        return res.json({
+                            status: 'success',
+                            liked: false,
+                            changed: this.changes > 0
+                        });
+                    }
+                );
+            }
+        }
+    );
 });
 
 app.post('/api/cloud/upload', (req, res) => {
