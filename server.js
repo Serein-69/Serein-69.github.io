@@ -33,13 +33,13 @@ const onlineHeartbeats = new Map();
 
 setInterval(() => {
     const now = Date.now();
-    for (const [steamId, info] of onlineHeartbeats.entries()) {
+    for (const [key, info] of onlineHeartbeats.entries()) {
         const lastTime = info && info.lastTime ? info.lastTime : info;
-        if (now - lastTime > 90000) {
-            onlineHeartbeats.delete(steamId);
+        if (now - lastTime > 45000) {
+            onlineHeartbeats.delete(key);
         }
     }
-}, 10000);
+}, 5000);
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
@@ -151,10 +151,19 @@ app.get('/api/chat/messages', (req, res) => {
         }
 
         const list = (rows || [])
-            .map((row) => ({
-                ...row,
-                is_online: onlineHeartbeats.has(String(row.steam_id)) ? 1 : 0
-            }))
+            .map((row) => {
+                let isOnline = 0;
+                for (const [, info] of onlineHeartbeats.entries()) {
+                    if (info && String(info.steamId) === String(row.steam_id)) {
+                        isOnline = 1;
+                        break;
+                    }
+                }
+                return {
+                    ...row,
+                    is_online: isOnline
+                };
+            })
             .reverse();
 
         res.json({
@@ -490,12 +499,14 @@ app.get('/api/online', (req, res) => {
     const steamId = String(req.query.id || req.query.steamId || '').trim();
     const customName = String(req.query.name || req.query.username || '').trim();
     const isHidden = req.query.hidden === '1' || req.query.hidden === 'true';
+    const clientId = String(req.query.clientId || steamId).trim();
 
-    if (steamId && steamId !== '0') {
-        onlineHeartbeats.set(steamId, {
+    if (clientId && clientId !== '0') {
+        onlineHeartbeats.set(clientId, {
             lastTime: Date.now(),
             name: customName || 'BOT User',
-            hidden: isHidden
+            hidden: isHidden,
+            steamId: steamId
         });
     }
 
@@ -556,12 +567,12 @@ async function updateDiscordLiveMessage(channel) {
     const visiblePlayersList = [];
     let hiddenPlayersCount = 0;
 
-    for (const [steamId, info] of onlineHeartbeats.entries()) {
+    for (const [, info] of onlineHeartbeats.entries()) {
         if (info.hidden) {
             hiddenPlayersCount++;
         } else {
             visiblePlayersList.push({
-                steamId,
+                steamId: info.steamId || '',
                 name: info.name || 'BOT User'
             });
         }
