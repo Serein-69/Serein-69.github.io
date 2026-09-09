@@ -46,6 +46,7 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.text({ limit: '100mb' }));
 app.use(express.static(__dirname));
+app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
 let dataFolder = __dirname;
 try {
@@ -124,6 +125,15 @@ app.get('/api/health', (req, res) => {
         status: 'success',
         message: 'Server is running',
         time: new Date().toISOString()
+    });
+});
+
+app.get('/api/version', (req, res) => {
+    res.json({
+        status: 'success',
+        latestVersion: '2.1',
+        downloadUrl: 'https://ghproxy.net/https://github.com/Serein-69/Serein-69.github.io/releases/latest/download/BOTMenuMod.dll',
+        changelog: '1. 支持全自动云更新\n2. 修复 UI 缩放\n3. 优化在线/离线红绿圆点状态'
     });
 });
 
@@ -607,7 +617,7 @@ async function updateDiscordLiveMessage(channel) {
             `### Current Online Player List\n` +
             `${playerListContent}\n\n` +
             `> **Mod Status:** \`Undetected (Active)\`\n` +
-            `> **Version:** \`v2.0\`\n` +
+            `> **Version:** \`v2.1\`\n` +
             `> **Last Updated:** \`${timeString}\``
         )
         .setFooter({
@@ -634,23 +644,3 @@ async function updateDiscordLiveMessage(channel) {
                 { type: ActivityType.Watching }
             );
         }
-    } catch (err) {
-        console.error('[Discord] Status update failed:', err.message);
-        if (err.code === 10008) {
-            liveStatusMessage = null;
-        }
-    }
-}
-
-if (DISCORD_CONFIG.BOT_TOKEN && !DISCORD_CONFIG.BOT_TOKEN.includes('填入你的')) {
-    discordClient.login(DISCORD_CONFIG.BOT_TOKEN).catch((err) => {
-        console.error('[Discord] Login failed:', err.message);
-    });
-} else {
-    console.log('[Discord] Bot token not configured');
-}
-
-app.listen(PORT, () => {
-    console.log(`[Server] Online on port ${PORT}`);
-    console.log(`[Server] Database: ${dbPath}`);
-});
