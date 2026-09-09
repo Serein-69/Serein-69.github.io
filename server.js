@@ -644,3 +644,23 @@ async function updateDiscordLiveMessage(channel) {
                 { type: ActivityType.Watching }
             );
         }
+    } catch (err) {
+        console.error('[Discord] Status update failed:', err.message);
+        if (err.code === 10008) {
+            liveStatusMessage = null;
+        }
+    }
+}
+
+if (DISCORD_CONFIG.BOT_TOKEN && !DISCORD_CONFIG.BOT_TOKEN.includes('填入你的')) {
+    discordClient.login(DISCORD_CONFIG.BOT_TOKEN).catch((err) => {
+        console.error('[Discord] Login failed:', err.message);
+    });
+} else {
+    console.log('[Discord] Bot token not configured');
+}
+
+app.listen(PORT, () => {
+    console.log(`[Server] Online on port ${PORT}`);
+    console.log(`[Server] Database: ${dbPath}`);
+});
