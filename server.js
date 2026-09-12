@@ -131,7 +131,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/version', (req, res) => {
     res.json({
         status: 'success',
-        latestVersion: '2.0', 
+        latestVersion: '2.1', 
         downloadUrl: 'https://ghfast.top/https://github.com/Serein-69/Serein-69.github.io/releases/download/2.1/BOTMenu.dll',
         changelog: '1. 支持全自动云更新\n2. 修复 UI 缩放\n3. 优化在线/离线状态显示'
     });
