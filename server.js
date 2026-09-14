@@ -140,8 +140,8 @@ app.get('/api/version', (req, res) => {
 app.get('/api/genesis/version', (req, res) => {
     res.json({
         status: 'success',
-        latestVersion: '2.0', 
-        downloadUrl: 'https://serein-69githubio-production.up.railway.app/downloads/GenesisAutoFarm.dll', 
+        latestVersion: '2.0',
+        downloadUrl: 'https://serein-69githubio-production.up.railway.app/downloads/ItemInspectorMod.dll',
         changelog: '1. 修复祭坛钻石自动领取\n2. 新增存仓时间自定义\n3. 修复仓库装备误穿'
     });
 });
