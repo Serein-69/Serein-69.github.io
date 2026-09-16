@@ -119,7 +119,7 @@ db.serialize(() => {
         )
     `);
 
-    // 动态白名单表（纯数据库动态管理，无硬编码）
+    // 动态白名单表
     db.run(`
         CREATE TABLE IF NOT EXISTS genesis_whitelist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,6 +128,11 @@ db.serialize(() => {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+});
+
+// ★ 核心修复：Railway 健康检查根路由 (防止容器被终止)
+app.get('/', (req, res) => {
+    res.status(200).send('Server is running OK');
 });
 
 app.get('/api/health', (req, res) => {
@@ -160,7 +165,7 @@ app.get('/api/genesis/version', (req, res) => {
 // 创世纪战白名单核心接口
 // ==========================================
 
-// 1. 客户端拉取白名单列表 (纯文本格式，每行一个 SteamID)
+// 1. 客户端拉取白名单列表 (纯文本格式)
 app.get('/api/genesis/whitelist', (req, res) => {
     db.all(`SELECT steam_id FROM genesis_whitelist ORDER BY id ASC`, [], (err, rows) => {
         if (err) {
@@ -845,7 +850,8 @@ if (DISCORD_CONFIG.BOT_TOKEN && !DISCORD_CONFIG.BOT_TOKEN.includes('填入你的
     console.log('[Discord] Bot token not configured');
 }
 
-app.listen(PORT, () => {
+// 绑定 0.0.0.0 保证 Railway 网络穿透
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Server] Online on port ${PORT}`);
     console.log(`[Server] Database: ${dbPath}`);
 });
