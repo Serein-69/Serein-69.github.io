@@ -155,9 +155,9 @@ app.get('/api/version', (req, res) => {
 app.get('/api/genesis/version', (req, res) => {
     res.json({
         status: 'success',
-        latestVersion: '2.2',
+        latestVersion: '2.4',
         downloadUrl: 'https://serein-69githubio-production.up.railway.app/downloads/ItemInspectorMod.dll',
-        changelog: '1. 动态白名单认证\n2. 自动化存仓与战场闭环'
+        changelog: ''
     });
 });
 
