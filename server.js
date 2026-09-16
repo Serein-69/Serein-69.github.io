@@ -140,7 +140,7 @@ app.get('/api/version', (req, res) => {
 app.get('/api/genesis/version', (req, res) => {
     res.json({
         status: 'success',
-        latestVersion: '2.2',
+        latestVersion: '2.3',
         downloadUrl: 'https://serein-69githubio-production.up.railway.app/downloads/ItemInspectorMod.dll',
         changelog: ''
     });
