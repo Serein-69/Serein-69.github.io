@@ -119,7 +119,7 @@ db.serialize(() => {
         )
     `);
 
-    // ★ 创世纪战专享：白名单数据库表
+    // 动态白名单表（纯数据库动态管理，无硬编码）
     db.run(`
         CREATE TABLE IF NOT EXISTS genesis_whitelist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,28 +128,6 @@ db.serialize(() => {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
-
-    // 默认内置初始化你的 SteamID（启动自动写入，绝不丢失）
-    const initialIds = [
-        '76561198272826606',
-        '76561199614357721',
-        '76561199317119221',
-        '76561199804553786',
-        '76561199115475689',
-        '76561199663598399',
-        '76561199859517039',
-        '76561199859954204',
-        '76561199860253324',
-        '76561199317164213',
-        '76561199860964304',
-        '76561199860403922',
-        '76561199859884107',
-        '76561199860335010'
-    ];
-
-    const stmt = db.prepare(`INSERT OR IGNORE INTO genesis_whitelist (steam_id, note) VALUES (?, 'Init User')`);
-    initialIds.forEach(id => stmt.run(id));
-    stmt.finalize();
 });
 
 app.get('/api/health', (req, res) => {
@@ -174,15 +152,15 @@ app.get('/api/genesis/version', (req, res) => {
         status: 'success',
         latestVersion: '2.2',
         downloadUrl: 'https://serein-69githubio-production.up.railway.app/downloads/ItemInspectorMod.dll',
-        changelog: '1. 深度优化白名单毫秒级校验\n2. 新增竞技场、首领、副本自动化'
+        changelog: '1. 动态白名单认证\n2. 自动化存仓与战场闭环'
     });
 });
 
 // ==========================================
-// ★ 创世纪战白名单核心接口 (0 缓存、毫秒级响应)
+// 创世纪战白名单核心接口
 // ==========================================
 
-// 1. 获取白名单文本 (给模组客户端调用)
+// 1. 客户端拉取白名单列表 (纯文本格式，每行一个 SteamID)
 app.get('/api/genesis/whitelist', (req, res) => {
     db.all(`SELECT steam_id FROM genesis_whitelist ORDER BY id ASC`, [], (err, rows) => {
         if (err) {
@@ -198,7 +176,7 @@ app.get('/api/genesis/whitelist', (req, res) => {
     });
 });
 
-// 2. 添加 SteamID (支持单个添加或批量文本添加)
+// 2. API 动态添加 SteamID
 app.post('/api/genesis/whitelist/add', (req, res) => {
     const body = req.body || {};
     const secret = body.secret || req.headers['x-secret-key'];
@@ -208,13 +186,12 @@ app.post('/api/genesis/whitelist/add', (req, res) => {
     }
 
     const rawIds = body.steamIds || body.steamId;
-    const note = String(body.note || 'Manual Add').trim();
+    const note = String(body.note || 'API Add').trim();
 
     if (!rawIds) {
         return res.status(400).json({ status: 'error', message: 'steamId or steamIds required' });
     }
 
-    // 支持数组或换行/逗号隔开的文本
     let idList = [];
     if (Array.isArray(rawIds)) {
         idList = rawIds;
@@ -240,7 +217,7 @@ app.post('/api/genesis/whitelist/add', (req, res) => {
     });
 });
 
-// 3. 删除指定 SteamID
+// 3. API 动态删除 SteamID
 app.post('/api/genesis/whitelist/remove', (req, res) => {
     const body = req.body || {};
     const secret = body.secret || req.headers['x-secret-key'];
@@ -263,6 +240,81 @@ app.post('/api/genesis/whitelist/remove', (req, res) => {
             deleted: this.changes > 0,
             steamId
         });
+    });
+});
+
+// ==========================================
+// 网页端白名单管理控制台 (/admin/whitelist)
+// ==========================================
+
+app.get('/admin/whitelist', (req, res) => {
+    db.all(`SELECT id, steam_id, note, created_at FROM genesis_whitelist ORDER BY id DESC`, [], (err, rows) => {
+        const listHtml = (rows || []).map(r => `
+            <tr>
+                <td style="padding:8px; border:1px solid #333;">${r.id}</td>
+                <td style="padding:8px; border:1px solid #333; font-family:monospace; font-weight:bold; color:#00ff66;">${r.steam_id}</td>
+                <td style="padding:8px; border:1px solid #333;">${r.note || ''}</td>
+                <td style="padding:8px; border:1px solid #333; font-size:12px; color:#888;">${r.created_at}</td>
+                <td style="padding:8px; border:1px solid #333;">
+                    <form method="POST" action="/admin/whitelist/delete" style="display:inline;" onsubmit="return confirm('确定删除该白名单?');">
+                        <input type="hidden" name="secret" value="${SERVER_SECRET_KEY}">
+                        <input type="hidden" name="steamId" value="${r.steam_id}">
+                        <button type="submit" style="background:#ff4444; color:#fff; border:none; padding:4px 8px; cursor:pointer; border-radius:3px;">删除</button>
+                    </form>
+                </td>
+            </tr>
+        `).join('');
+
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="utf-8"><title>创世纪战 · 白名单管理后台</title></head>
+            <body style="background:#121620; color:#fff; font-family:sans-serif; padding:20px; max-width:850px; margin:auto;">
+                <h2>创世纪战 · 云端白名单实时管理后台</h2>
+                <div style="background:#1c2230; padding:15px; border-radius:6px; margin-bottom:20px;">
+                    <h3>添加新白名单 (支持单条或多行批量粘贴)</h3>
+                    <form method="POST" action="/admin/whitelist/add">
+                        <input type="hidden" name="secret" value="${SERVER_SECRET_KEY}">
+                        <p><label>SteamID (每行一个):</label><br>
+                        <textarea name="steamIds" rows="5" style="width:100%; box-sizing:border-box; background:#0a0d14; color:#00ff66; border:1px solid #444; padding:8px; font-family:monospace;" placeholder="76561199115475689&#10;76561198272826606" required></textarea></p>
+                        <p><label>备注信息 (可选):</label><br>
+                        <input type="text" name="note" style="width:100%; box-sizing:border-box; background:#0a0d14; color:#fff; border:1px solid #444; padding:8px;" placeholder="例如: 玩家"></p>
+                        <button type="submit" style="background:#00bb44; color:#fff; font-size:14px; font-weight:bold; border:none; padding:8px 20px; cursor:pointer; border-radius:4px;">确认添加至白名单</button>
+                    </form>
+                </div>
+                <h3>当前已授权白名单列表 (共 ${(rows || []).length} 人)</h3>
+                <table style="width:100%; border-collapse:collapse; background:#1c2230;">
+                    <thead><tr style="background:#252d3d; text-align:left;">
+                        <th style="padding:8px; border:1px solid #333;">ID</th>
+                        <th style="padding:8px; border:1px solid #333;">SteamID</th>
+                        <th style="padding:8px; border:1px solid #333;">备注</th>
+                        <th style="padding:8px; border:1px solid #333;">添加时间</th>
+                        <th style="padding:8px; border:1px solid #333;">操作</th>
+                    </tr></thead>
+                    <tbody>${listHtml || '<tr><td colspan="5" style="padding:15px; text-align:center; color:#888;">暂无数据，请在上方添加</td></tr>'}</tbody>
+                </table>
+            </body>
+            </html>
+        `);
+    });
+});
+
+app.post('/admin/whitelist/add', (req, res) => {
+    const { secret, steamIds, note } = req.body || {};
+    if (secret !== SERVER_SECRET_KEY) return res.status(403).send('无权访问');
+    const idList = String(steamIds || '').split(/[\r\n,;]+/).map(s => s.trim()).filter(Boolean);
+    const stmt = db.prepare(`INSERT OR IGNORE INTO genesis_whitelist (steam_id, note) VALUES (?, ?)`);
+    idList.forEach(id => {
+        if (/^\d{16,20}$/.test(id)) stmt.run(id, String(note || 'Web Add'));
+    });
+    stmt.finalize(() => res.redirect('/admin/whitelist'));
+});
+
+app.post('/admin/whitelist/delete', (req, res) => {
+    const { secret, steamId } = req.body || {};
+    if (secret !== SERVER_SECRET_KEY) return res.status(403).send('无权访问');
+    db.run(`DELETE FROM genesis_whitelist WHERE steam_id = ?`, [String(steamId).trim()], () => {
+        res.redirect('/admin/whitelist');
     });
 });
 
