@@ -118,6 +118,38 @@ db.serialize(() => {
             FOREIGN KEY(config_id) REFERENCES cloud_configs(id) ON DELETE CASCADE
         )
     `);
+
+    // ★ 创世纪战专享：白名单数据库表
+    db.run(`
+        CREATE TABLE IF NOT EXISTS genesis_whitelist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            steam_id TEXT UNIQUE NOT NULL,
+            note TEXT DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // 默认内置初始化你的 SteamID（启动自动写入，绝不丢失）
+    const initialIds = [
+        '76561198272826606',
+        '76561199614357721',
+        '76561199317119221',
+        '76561199804553786',
+        '76561199115475689',
+        '76561199663598399',
+        '76561199859517039',
+        '76561199859954204',
+        '76561199860253324',
+        '76561199317164213',
+        '76561199860964304',
+        '76561199860403922',
+        '76561199859884107',
+        '76561199860335010'
+    ];
+
+    const stmt = db.prepare(`INSERT OR IGNORE INTO genesis_whitelist (steam_id, note) VALUES (?, 'Init User')`);
+    initialIds.forEach(id => stmt.run(id));
+    stmt.finalize();
 });
 
 app.get('/api/health', (req, res) => {
@@ -140,11 +172,103 @@ app.get('/api/version', (req, res) => {
 app.get('/api/genesis/version', (req, res) => {
     res.json({
         status: 'success',
-        latestVersion: '2.3',
+        latestVersion: '2.2',
         downloadUrl: 'https://serein-69githubio-production.up.railway.app/downloads/ItemInspectorMod.dll',
-        changelog: ''
+        changelog: '1. 深度优化白名单毫秒级校验\n2. 新增竞技场、首领、副本自动化'
     });
 });
+
+// ==========================================
+// ★ 创世纪战白名单核心接口 (0 缓存、毫秒级响应)
+// ==========================================
+
+// 1. 获取白名单文本 (给模组客户端调用)
+app.get('/api/genesis/whitelist', (req, res) => {
+    db.all(`SELECT steam_id FROM genesis_whitelist ORDER BY id ASC`, [], (err, rows) => {
+        if (err) {
+            console.error('[Genesis Whitelist] Query failed:', err.message);
+            return res.status(500).send('');
+        }
+
+        const list = (rows || []).map(r => r.steam_id).join('\n');
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.send(list);
+    });
+});
+
+// 2. 添加 SteamID (支持单个添加或批量文本添加)
+app.post('/api/genesis/whitelist/add', (req, res) => {
+    const body = req.body || {};
+    const secret = body.secret || req.headers['x-secret-key'];
+
+    if (secret !== SERVER_SECRET_KEY) {
+        return res.status(403).json({ status: 'error', message: 'Forbidden: Invalid secret key' });
+    }
+
+    const rawIds = body.steamIds || body.steamId;
+    const note = String(body.note || 'Manual Add').trim();
+
+    if (!rawIds) {
+        return res.status(400).json({ status: 'error', message: 'steamId or steamIds required' });
+    }
+
+    // 支持数组或换行/逗号隔开的文本
+    let idList = [];
+    if (Array.isArray(rawIds)) {
+        idList = rawIds;
+    } else {
+        idList = String(rawIds).split(/[\r\n,;]+/).map(s => s.trim()).filter(Boolean);
+    }
+
+    let insertedCount = 0;
+    const stmt = db.prepare(`INSERT OR IGNORE INTO genesis_whitelist (steam_id, note) VALUES (?, ?)`);
+    idList.forEach(id => {
+        if (/^\d{16,20}$/.test(id)) {
+            stmt.run(id, note, function () {
+                if (this.changes > 0) insertedCount++;
+            });
+        }
+    });
+    stmt.finalize();
+
+    res.json({
+        status: 'success',
+        totalSubmitted: idList.length,
+        message: 'Whitelist updated'
+    });
+});
+
+// 3. 删除指定 SteamID
+app.post('/api/genesis/whitelist/remove', (req, res) => {
+    const body = req.body || {};
+    const secret = body.secret || req.headers['x-secret-key'];
+
+    if (secret !== SERVER_SECRET_KEY) {
+        return res.status(403).json({ status: 'error', message: 'Forbidden: Invalid secret key' });
+    }
+
+    const steamId = String(body.steamId || '').trim();
+    if (!steamId) {
+        return res.status(400).json({ status: 'error', message: 'steamId is required' });
+    }
+
+    db.run(`DELETE FROM genesis_whitelist WHERE steam_id = ?`, [steamId], function (err) {
+        if (err) {
+            return res.status(500).json({ status: 'error', message: err.message });
+        }
+        res.json({
+            status: 'success',
+            deleted: this.changes > 0,
+            steamId
+        });
+    });
+});
+
+// ==========================================
+// 聊天系统与云配置接口
+// ==========================================
 
 app.get('/api/chat/messages', (req, res) => {
     const sql = `
