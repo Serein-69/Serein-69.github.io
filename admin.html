@@ -24,6 +24,7 @@ th { color: #94a3b8; }
 .code-cell { font-family: monospace; color: #38bdf8; font-weight: 600; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 #log { color: #94a3b8; font-size: 12px; margin-top: 10px; }
+.stat { color: #94a3b8; font-size: 12px; margin-left: 12px; }
 </style>
 </head>
 <body>
@@ -35,6 +36,8 @@ th { color: #94a3b8; }
         <input type="password" id="pwd" placeholder="管理员密码" style="width: 220px;">
         <button onclick="savePwd()">保存密码</button>
         <button onclick="loadList()" class="green">刷新列表</button>
+        <button onclick="cleanupExpired()" class="orange">清理过期卡密</button>
+        <span id="stat" class="stat"></span>
     </div>
     <div id="log">等待操作...</div>
 </div>
@@ -100,16 +103,24 @@ async function loadList() {
 
 function renderList(arr) {
     var tb = document.getElementById('list');
+    var stat = document.getElementById('stat');
     if (!arr || arr.length === 0) {
         tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;">暂无卡密，先生成一批</td></tr>';
+        if (stat) stat.innerText = '总计: 0';
         return;
     }
     tb.innerHTML = '';
+    var bound = 0, unbound = 0, expired = 0;
+    var now = Math.floor(Date.now() / 1000);
     arr.forEach(function(item) {
         var isPerm = item.duration_days >= 99999;
         var days = isPerm ? '<span style="color:#fbbf24;font-weight:600;">永久</span>' : item.duration_days + ' 天';
         var hwid = item.machine_id ? item.machine_id.substring(0, 20) + '...' : '<span style="color:#64748b;">未绑定</span>';
         var exp = isPerm ? '永久' : (item.expire_time ? new Date(Number(item.expire_time) * 1000).toLocaleString() : '<span style="color:#64748b;">未激活</span>');
+
+        if (item.machine_id) bound++; else unbound++;
+        if (!isPerm && item.expire_time && Number(item.expire_time) < now) expired++;
+
         var tr = document.createElement('tr');
         tr.innerHTML =
             '<td class="code-cell">' + item.code + '</td>' +
@@ -123,6 +134,7 @@ function renderList(arr) {
             '</td>';
         tb.appendChild(tr);
     });
+    if (stat) stat.innerText = '总计: ' + arr.length + ' | 已绑定: ' + bound + ' | 未绑定: ' + unbound + ' | 已过期: ' + expired;
 }
 
 async function genCodes() {
@@ -166,6 +178,26 @@ async function delCode(code) {
     });
     log('已删除 ' + code);
     loadList();
+}
+
+async function cleanupExpired() {
+    if (!confirm('确认清理过期超过 30 天的卡密？\n\n规则：\n1. 永久卡不受影响\n2. 未绑定卡密不受影响\n3. 只有已绑定且过期超过 30 天的会被删除')) return;
+    var pwd = getPwd();
+    if (!pwd) return log('请先输入管理员密码');
+    try {
+        var r = await fetch('/api/master-serein-8899/cleanup', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        var d = await r.json();
+        if (d.status === 'success') {
+            log(d.message);
+            loadList();
+        } else {
+            log('清理失败：' + (d.message || ''));
+        }
+    } catch (e) { log('清理失败：' + e.message); }
 }
 </script>
 </body>
