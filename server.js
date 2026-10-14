@@ -1,51 +1,27 @@
-/**
- * War of Genesis — Enterprise Cloud Console & License Hub
- * Railway Node.js 版本（替代 Cloudflare Worker）
- */
-
 import express from 'express';
 import pg from 'pg';
-import crypto from 'crypto';
 
 const app = express();
 app.use(express.json());
 
-// ==================== 数据库连接 ====================
 const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
-// ==================== 常量 ====================
 const CHARSET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const CODE_REGEX = /^GEN-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/;
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || "admin123456";
 
-// ==================== 限流 ====================
-const ipRateLimitMap = new Map();
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
 
-function isRateLimited(ip, maxAttempts = 5, windowMs = 600000) {
-    const now = Date.now();
-    const record = ipRateLimitMap.get(ip) || { count: 0, resetAt: now + windowMs };
-    if (now > record.resetAt) {
-        record.count = 0;
-        record.resetAt = now + windowMs;
-    }
-    record.count++;
-    ipRateLimitMap.set(ip, record);
-    return record.count > maxAttempts;
-}
-
-function clearRateLimit(ip) { ipRateLimitMap.delete(ip); }
-
-function getClientIP(req) {
-    return req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-           req.headers['cf-connecting-ip'] ||
-           req.socket.remoteAddress ||
-           '127.0.0.1';
-}
-
-// ==================== 工具函数 ====================
 function generateLicenseCode() {
     const part = (len) => {
         let res = "";
@@ -54,28 +30,16 @@ function generateLicenseCode() {
     };
     return `GEN-${part(4)}-${part(4)}-${part(4)}`;
 }
-
-function cleanCode(s) {
-    if (!s) return "";
-    return String(s).trim().toUpperCase();
-}
-
-function cleanMachineId(s) {
-    if (!s) return "";
-    return String(s).replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase();
-}
-
+const cleanCode = (s) => s ? String(s).trim().toUpperCase() : "";
+const cleanMachineId = (s) => s ? String(s).replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase() : "";
 function timingSafeEqual(a, b) {
     if (typeof a !== 'string' || typeof b !== 'string') return false;
     if (a.length !== b.length) return false;
-    let mismatch = 0;
-    for (let i = 0; i < a.length; i++) {
-        mismatch |= (a.charCodeAt(i) ^ b.charCodeAt(i));
-    }
-    return mismatch === 0;
+    let m = 0;
+    for (let i = 0; i < a.length; i++) m |= (a.charCodeAt(i) ^ b.charCodeAt(i));
+    return m === 0;
 }
 
-// ==================== 初始化数据库表 ====================
 async function initDatabase() {
     try {
         await pool.query(`
@@ -97,17 +61,7 @@ async function initDatabase() {
     }
 }
 
-// ==================== CORS 中间件 ====================
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-    if (req.method === 'OPTIONS') return res.sendStatus(200);
-    next();
-});
-
-// ==================== 1. 在线静默验证 ====================
+// ==================== 用户端 API ====================
 app.post('/api/license/verify', async (req, res) => {
     try {
         const now = Math.floor(Date.now() / 1000);
@@ -125,7 +79,7 @@ app.post('/api/license/verify', async (req, res) => {
         }
         if (!lic && rawCode) {
             const r = await pool.query(
-                'SELECT * FROM licenses WHERE code = $1 OR REPLACE(code, \'-\', \'\') = REPLACE($1, \'-\', \'\')',
+                "SELECT * FROM licenses WHERE code = $1 OR REPLACE(code,'-','') = REPLACE($1,'-','')",
                 [rawCode]
             );
             lic = r.rows[0];
@@ -147,7 +101,7 @@ app.post('/api/license/verify', async (req, res) => {
             status: "success",
             code: lic.code,
             expireTime: Number(lic.expire_time) || 0,
-            daysLeft: daysLeft,
+            daysLeft,
             message: isPerm ? "永久有效" : `剩余 ${daysLeft} 天`
         });
     } catch (e) {
@@ -155,29 +109,20 @@ app.post('/api/license/verify', async (req, res) => {
     }
 });
 
-// ==================== 2. 卡密激活与绑定 ====================
 app.post('/api/license/bind', async (req, res) => {
     try {
         const now = Math.floor(Date.now() / 1000);
-        const clientIP = getClientIP(req);
-
-        if (isRateLimited(clientIP, 5, 600000)) {
-            return res.json({ status: "error", message: "激活尝试过于频繁，请 10 分钟后再试！" });
-        }
-
         const rawCode = cleanCode(req.body.code);
         const rawMachineId = cleanMachineId(req.body.machineId);
 
         if (!rawCode) return res.json({ status: "error", message: "卡密代码不能为空" });
-        if (!rawMachineId || rawMachineId.length < 8) {
+        if (!rawMachineId || rawMachineId.length < 8)
             return res.json({ status: "error", message: "硬件特征码无效" });
-        }
-        if (!CODE_REGEX.test(rawCode)) {
+        if (!CODE_REGEX.test(rawCode))
             return res.json({ status: "error", message: "卡密格式不正确" });
-        }
 
         const r = await pool.query(
-            'SELECT * FROM licenses WHERE code = $1 OR REPLACE(code, \'-\', \'\') = REPLACE($1, \'-\', \'\')',
+            "SELECT * FROM licenses WHERE code = $1 OR REPLACE(code,'-','') = REPLACE($1,'-','')",
             [rawCode]
         );
         const lic = r.rows[0];
@@ -186,18 +131,7 @@ app.post('/api/license/bind', async (req, res) => {
         if (lic.is_banned === 1) return res.json({ status: "error", message: "卡密已被冻结" });
 
         if (lic.machine_id && cleanMachineId(lic.machine_id) !== rawMachineId) {
-            return res.json({ status: "error", message: "此卡密已绑定其他电脑，请联系管理员解绑。" });
-        }
-
-        const existingBind = await pool.query(
-            'SELECT * FROM licenses WHERE machine_id = $1 AND code != $2 AND (duration_days >= 99999 OR expire_time > $3)',
-            [rawMachineId, lic.code, now]
-        );
-        if (existingBind.rows.length > 0) {
-            return res.json({
-                status: "error",
-                message: `当前电脑已激活卡密 [${existingBind.rows[0].code}]，无需重复绑定！`
-            });
+            return res.json({ status: "error", message: "此卡密已绑定其他电脑，请联系管理员解绑" });
         }
 
         const isPerm = lic.duration_days >= 99999;
@@ -213,15 +147,13 @@ app.post('/api/license/bind', async (req, res) => {
             await pool.query('UPDATE licenses SET last_verify_time = $1 WHERE code = $2', [now, lic.code]);
         }
 
-        clearRateLimit(clientIP);
-
         const daysLeft = isPerm ? 99999 : Math.max(0, Math.ceil((expTime - now) / 86400));
 
         res.json({
             status: "success",
             code: lic.code,
             expireTime: expTime,
-            daysLeft: daysLeft,
+            daysLeft,
             message: isPerm ? "永久有效授权激活成功" : `激活成功，有效天数 ${lic.duration_days} 天`
         });
     } catch (e) {
@@ -229,19 +161,17 @@ app.post('/api/license/bind', async (req, res) => {
     }
 });
 
-// ==================== 3. 管理员后台接口 ====================
 function adminAuth(req, res, next) {
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.replace('Bearer ', '').trim();
-    if (!timingSafeEqual(token, ADMIN_PASS)) {
+    const auth = req.headers.authorization || '';
+    const token = auth.replace('Bearer ', '').trim();
+    if (!timingSafeEqual(token, ADMIN_PASS))
         return res.status(401).json({ status: "error", message: "管理员认证失败" });
-    }
     next();
 }
 
 app.get('/api/master-serein-8899/list', adminAuth, async (req, res) => {
     try {
-        const r = await pool.query('SELECT * FROM licenses ORDER BY created_time DESC LIMIT 500');
+        const r = await pool.query('SELECT * FROM licenses ORDER BY created_time DESC LIMIT 1000');
         res.json({ status: "success", data: r.rows });
     } catch (e) {
         res.status(500).json({ status: "error", message: e.message });
@@ -272,7 +202,7 @@ app.post('/api/master-serein-8899/generate', adminAuth, async (req, res) => {
 
 app.post('/api/master-serein-8899/unbind', adminAuth, async (req, res) => {
     try {
-        await pool.query('UPDATE licenses SET machine_id = NULL WHERE code = $1', [cleanCode(req.body.code)]);
+        await pool.query('UPDATE licenses SET machine_id = NULL, expire_time = 0, bind_time = 0 WHERE code = $1', [cleanCode(req.body.code)]);
         res.json({ status: "success", message: "已解绑" });
     } catch (e) {
         res.status(500).json({ status: "error", message: e.message });
@@ -288,36 +218,181 @@ app.post('/api/master-serein-8899/delete', adminAuth, async (req, res) => {
     }
 });
 
-// ==================== 4. 客户端更新接口 ====================
-app.get('/api/deskrawl/version', (req, res) => {
-    res.json({
-        status: "success",
-        latestVersion: "1.0.3",
-        downloadUrl: "/api/deskrawl/download",
-        changelog: ""
-    });
-});
+app.get('/master-control-serein-8899', (req, res) => {
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>卡密管理后台</title>
+<style>
+* { box-sizing: border-box; font-family: -apple-system, sans-serif; }
+body { background: #090d16; color: #e2e8f0; margin: 0; padding: 24px; }
+.wrap { max-width: 1200px; margin: 0 auto; }
+h1 { color: #38bdf8; font-size: 22px; margin: 0 0 20px; }
+.panel { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+input, select, button { padding: 9px 12px; border-radius: 4px; border: 1px solid #374151; background: #0c1322; color: #fff; margin-right: 8px; font-size: 13px; }
+button { background: #2563eb; cursor: pointer; border: none; font-weight: 600; }
+button:hover { background: #1d4ed8; }
+button.green { background: #059669; }
+button.green:hover { background: #047857; }
+button.red { background: #dc2626; }
+button.red:hover { background: #b91c1c; }
+button.orange { background: #b45309; }
+button.orange:hover { background: #92400e; }
+table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+th, td { padding: 10px; text-align: left; border-bottom: 1px solid #1f2937; font-size: 13px; }
+th { color: #94a3b8; }
+.code-cell { font-family: monospace; color: #38bdf8; font-weight: 600; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+#log { color: #94a3b8; font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Deskrawl 卡密管理后台</h1>
 
-app.get('/api/deskrawl/download', async (req, res) => {
+<div class="panel">
+    <div class="row">
+        <input type="password" id="pwd" placeholder="管理员密码" style="width: 220px;">
+        <button onclick="savePwd()">保存密码</button>
+        <button onclick="loadList()" class="green">刷新列表</button>
+    </div>
+    <div id="log">等待操作...</div>
+</div>
+
+<div class="panel">
+    <h3 style="margin-top:0;color:#f8fafc;">批量生成卡密</h3>
+    <div class="row">
+        <input type="number" id="genCount" value="1" min="1" max="100" style="width:80px;" placeholder="数量">
+        <select id="genDays">
+            <option value="1">天卡 (1天)</option>
+            <option value="7">周卡 (7天)</option>
+            <option value="30" selected>月卡 (30天)</option>
+            <option value="90">季卡 (90天)</option>
+            <option value="365">年卡 (365天)</option>
+            <option value="99999">永久卡</option>
+        </select>
+        <input type="text" id="genRemark" placeholder="备注（可选）" style="width:200px;">
+        <button onclick="genCodes()" class="green">生成</button>
+    </div>
+</div>
+
+<div class="panel">
+    <h3 style="margin-top:0;color:#f8fafc;">卡密列表</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>卡密</th>
+                <th>时长</th>
+                <th>机器码</th>
+                <th>到期</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="list"></tbody>
+    </table>
+</div>
+</div>
+
+<script>
+function getPwd() { return document.getElementById('pwd').value.trim(); }
+function savePwd() { localStorage.setItem('deskrawl_admin_pwd', getPwd()); log('密码已保存'); }
+function log(msg) { document.getElementById('log').innerText = '[' + new Date().toLocaleTimeString() + '] ' + msg; }
+
+window.onload = () => {
+    const saved = localStorage.getItem('deskrawl_admin_pwd');
+    if (saved) { document.getElementById('pwd').value = saved; loadList(); }
+};
+
+async function loadList() {
+    const pwd = getPwd();
+    if (!pwd) return log('请先输入管理员密码');
     try {
-        const url = 'https://raw.githubusercontent.com/Serein-69/Serein-69.github.io/main/downloads/DeskrawlMod.dll';
-        const r = await fetch(url);
-        if (!r.ok) return res.status(404).send("File not found");
-        const buf = Buffer.from(await r.arrayBuffer());
-        res.set('Content-Type', 'application/octet-stream');
-        res.set('Content-Length', String(buf.length));
-        res.set('Content-Disposition', 'attachment; filename="DeskrawlMod.dll"');
-        res.send(buf);
-    } catch (e) {
-        res.status(500).send("Download failed: " + e.message);
-    }
+        const r = await fetch('/api/master-serein-8899/list', {
+            headers: { 'Authorization': 'Bearer ' + pwd }
+        });
+        const d = await r.json();
+        if (d.status !== 'success') return log('认证失败：' + (d.message || ''));
+        renderList(d.data);
+        log('已加载 ' + d.data.length + ' 条卡密');
+    } catch (e) { log('加载失败：' + e.message); }
+}
+
+function renderList(arr) {
+    const tb = document.getElementById('list');
+    if (!arr || arr.length === 0) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;">暂无卡密，先生成一批</td></tr>'; return; }
+    tb.innerHTML = '';
+    arr.forEach(item => {
+        const isPerm = item.duration_days >= 99999;
+        const days = isPerm ? '<span style="color:#fbbf24;font-weight:600;">永久</span>' : item.duration_days + ' 天';
+        const hwid = item.machine_id ? item.machine_id.substring(0, 20) + '...' : '<span style="color:#64748b;">未绑定</span>';
+        const exp = isPerm ? '永久' : (item.expire_time ? new Date(Number(item.expire_time) * 1000).toLocaleString() : '<span style="color:#64748b;">未激活</span>');
+        const tr = document.createElement('tr');
+        tr.innerHTML = \`
+            <td class="code-cell">\${item.code}</td>
+            <td>\${days}</td>
+            <td style="font-size:11px;">\${hwid}</td>
+            <td style="font-size:12px;">\${exp}</td>
+            <td>\${item.remark || '-'}</td>
+            <td>
+                \${item.machine_id ? '<button class="orange" onclick="unbind(\\'' + item.code + '\\')">解绑</button>' : ''}
+                <button class="red" onclick="delCode(\\'' + item.code + '\\')">删除</button>
+            </td>
+        \`;
+        tb.appendChild(tr);
+    });
+}
+
+async function genCodes() {
+    const pwd = getPwd();
+    if (!pwd) return log('请先输入管理员密码');
+    const count = document.getElementById('genCount').value;
+    const days = document.getElementById('genDays').value;
+    const remark = document.getElementById('genRemark').value;
+    try {
+        const r = await fetch('/api/master-serein-8899/generate', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count, days, remark })
+        });
+        const d = await r.json();
+        if (d.status !== 'success') return log('生成失败：' + d.message);
+        log('成功生成 ' + d.generated.length + ' 个卡密：' + d.generated.join(', '));
+        loadList();
+    } catch (e) { log('生成失败：' + e.message); }
+}
+
+async function unbind(code) {
+    if (!confirm('确认解绑 ' + code + '？')) return;
+    const pwd = getPwd();
+    await fetch('/api/master-serein-8899/unbind', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+    });
+    log('已解绑 ' + code);
+    loadList();
+}
+
+async function delCode(code) {
+    if (!confirm('确认彻底删除 ' + code + '？')) return;
+    const pwd = getPwd();
+    await fetch('/api/master-serein-8899/delete', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+    });
+    log('已删除 ' + code);
+    loadList();
+}
+</script>
+</body>
+</html>`);
 });
 
-// ==================== 5. 健康检查 ====================
-app.get('/', (req, res) => {
-    res.send('Genesis License Server is running.');
-});
-
+app.get('/', (req, res) => res.send('Deskrawl License Server OK'));
 app.get('/health', async (req, res) => {
     try {
         await pool.query('SELECT 1');
@@ -327,9 +402,8 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ==================== 启动 ====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
-    console.log(`[Server] 已启动，端口 ${PORT}`);
+    console.log(\`[Server] 已启动，端口 \${PORT}\`);
     await initDatabase();
 });
