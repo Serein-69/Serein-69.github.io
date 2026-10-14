@@ -1,14 +1,13 @@
 {
-  "name": "crab-game-backend",
+  "name": "genesis-license-server",
   "version": "1.0.0",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "discord.js": "^14.14.1",
     "express": "^4.18.2",
-    "sqlite3": "^5.1.7"
+    "pg": "^8.11.3"
   }
 }
