@@ -19,8 +19,12 @@ const CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const CODE_REGEX = /^GEN-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/;
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123456';
 
-// 过期卡密保留天数（超过这个天数自动清理）
+// 过期卡密保留天数
 const CLEANUP_KEEP_DAYS = 30;
+
+// 在线判定窗口
+const ONLINE_WINDOW = 600;    // 10 分钟内验证过 = 在线
+const RECENT_WINDOW = 3600;   // 1 小时内验证过 = 最近活跃
 
 // ==================== CORS ====================
 app.use((req, res, next) => {
@@ -72,6 +76,7 @@ async function initDatabase() {
         console.log('[DB] DATABASE_URL 前缀:', url.substring(0, 25) + '...');
         console.log('[DB] 开始建表...');
 
+        // 卡密表
         await pool.query(
             'CREATE TABLE IF NOT EXISTS licenses (' +
             'code VARCHAR(32) PRIMARY KEY, ' +
@@ -85,7 +90,20 @@ async function initDatabase() {
             'created_time BIGINT NOT NULL' +
             ')'
         );
+
+        // 未授权尝试记录表
+        await pool.query(
+            'CREATE TABLE IF NOT EXISTS unauthorized_logs (' +
+            'id SERIAL PRIMARY KEY, ' +
+            'machine_id VARCHAR(64), ' +
+            'code VARCHAR(32), ' +
+            'reason VARCHAR(64), ' +
+            'attempt_time BIGINT NOT NULL' +
+            ')'
+        );
+
         console.log('[DB] licenses 表已就绪');
+        console.log('[DB] unauthorized_logs 表已就绪');
 
         const r = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
         console.log('[DB] 当前卡密数量:', r.rows[0].cnt);
@@ -95,17 +113,13 @@ async function initDatabase() {
     }
 }
 
-// ==================== 清理过期卡密 ====================
+// ==================== 清理 ====================
 async function cleanupExpiredLicenses() {
     try {
         const now = Math.floor(Date.now() / 1000);
         const threshold = now - (CLEANUP_KEEP_DAYS * 86400);
 
-        // 规则：
-        // 1. 排除永久卡（duration_days >= 99999）
-        // 2. 排除未绑定卡密（machine_id IS NULL），还没卖出去
-        // 3. 排除未过期的
-        // 4. 删除过期超过 CLEANUP_KEEP_DAYS 天的
+        // 删除已绑定 + 过期超过 30 天的卡密
         const r = await pool.query(
             'DELETE FROM licenses ' +
             'WHERE duration_days < 99999 ' +
@@ -115,15 +129,33 @@ async function cleanupExpiredLicenses() {
             [threshold]
         );
 
+        // 清理 7 天前的未授权记录
+        const r2 = await pool.query(
+            'DELETE FROM unauthorized_logs WHERE attempt_time < $1',
+            [now - (7 * 86400)]
+        );
+
         if (r.rowCount > 0) {
             console.log('[清理] 删除', r.rowCount, '条过期超过', CLEANUP_KEEP_DAYS, '天的卡密');
-        } else {
-            console.log('[清理] 无过期卡密需要清理');
         }
-        return r.rowCount;
+        if (r2.rowCount > 0) {
+            console.log('[清理] 删除', r2.rowCount, '条过期未授权记录');
+        }
     } catch (e) {
         console.error('[清理] 错误:', e.message);
-        return 0;
+    }
+}
+
+// ==================== 记录未授权尝试 ====================
+async function logUnauthorized(machineId, code, reason) {
+    try {
+        const now = Math.floor(Date.now() / 1000);
+        await pool.query(
+            'INSERT INTO unauthorized_logs (machine_id, code, reason, attempt_time) VALUES ($1, $2, $3, $4)',
+            [machineId || '', code || '', reason, now]
+        );
+    } catch (e) {
+        console.error('[unauth-log] 错误:', e.message);
     }
 }
 
@@ -151,11 +183,18 @@ app.post('/api/license/verify', async (req, res) => {
             lic = r.rows[0];
         }
 
-        if (!lic) return res.json({ status: 'error', message: '设备未授权' });
-        if (lic.is_banned === 1) return res.json({ status: 'error', message: '授权已被冻结' });
+        if (!lic) {
+            await logUnauthorized(machineId, rawCode, 'not_found');
+            return res.json({ status: 'error', message: '设备未授权' });
+        }
+        if (lic.is_banned === 1) {
+            await logUnauthorized(machineId, lic.code, 'banned');
+            return res.json({ status: 'error', message: '授权已被冻结' });
+        }
 
         const isPerm = lic.duration_days >= 99999;
         if (!isPerm && lic.expire_time && Number(lic.expire_time) < now) {
+            await logUnauthorized(machineId, lic.code, 'expired');
             return res.json({ status: 'error', message: '卡密已过期' });
         }
 
@@ -194,10 +233,17 @@ app.post('/api/license/bind', async (req, res) => {
         );
         const lic = r.rows[0];
 
-        if (!lic) return res.json({ status: 'error', message: '卡密不存在' });
-        if (lic.is_banned === 1) return res.json({ status: 'error', message: '卡密已被冻结' });
+        if (!lic) {
+            await logUnauthorized(rawMachineId, rawCode, 'bind_not_found');
+            return res.json({ status: 'error', message: '卡密不存在' });
+        }
+        if (lic.is_banned === 1) {
+            await logUnauthorized(rawMachineId, lic.code, 'bind_banned');
+            return res.json({ status: 'error', message: '卡密已被冻结' });
+        }
 
         if (lic.machine_id && cleanMachineId(lic.machine_id) !== rawMachineId) {
+            await logUnauthorized(rawMachineId, lic.code, 'bind_other_machine');
             return res.json({ status: 'error', message: '此卡密已绑定其他电脑，请联系管理员解绑' });
         }
 
@@ -244,6 +290,54 @@ app.get('/api/master-serein-8899/list', adminAuth, async (req, res) => {
         res.json({ status: 'success', data: r.rows });
     } catch (e) {
         console.error('[admin/list] 错误:', e.message);
+        res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
+// ★ 在线统计
+app.get('/api/master-serein-8899/online', adminAuth, async (req, res) => {
+    try {
+        const now = Math.floor(Date.now() / 1000);
+        const onlineThreshold = now - ONLINE_WINDOW;
+        const recentThreshold = now - RECENT_WINDOW;
+
+        const onlineResult = await pool.query(
+            'SELECT code, machine_id, remark, last_verify_time, duration_days, expire_time ' +
+            'FROM licenses ' +
+            'WHERE last_verify_time >= $1 ' +
+            'ORDER BY last_verify_time DESC',
+            [onlineThreshold]
+        );
+
+        const recentResult = await pool.query(
+            'SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1',
+            [recentThreshold]
+        );
+
+        const totalBoundResult = await pool.query(
+            'SELECT COUNT(*) AS cnt FROM licenses WHERE machine_id IS NOT NULL'
+        );
+
+        const totalResult = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
+
+        const unauthResult = await pool.query(
+            'SELECT machine_id, code, reason, attempt_time FROM unauthorized_logs ' +
+            'WHERE attempt_time >= $1 ' +
+            'ORDER BY attempt_time DESC LIMIT 50',
+            [recentThreshold]
+        );
+
+        res.json({
+            status: 'success',
+            online_count: onlineResult.rows.length,
+            online_list: onlineResult.rows,
+            recent_count: parseInt(recentResult.rows[0].cnt),
+            total_bound: parseInt(totalBoundResult.rows[0].cnt),
+            total: parseInt(totalResult.rows[0].cnt),
+            unauthorized_list: unauthResult.rows
+        });
+    } catch (e) {
+        console.error('[admin/online] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
@@ -295,13 +389,11 @@ app.post('/api/master-serein-8899/delete', adminAuth, async (req, res) => {
     }
 });
 
-// ★ 手动触发清理
 app.post('/api/master-serein-8899/cleanup', adminAuth, async (req, res) => {
     try {
-        const deleted = await cleanupExpiredLicenses();
-        res.json({ status: 'success', message: '已清理 ' + deleted + ' 条过期卡密', deleted: deleted });
+        await cleanupExpiredLicenses();
+        res.json({ status: 'success', message: '已清理过期卡密' });
     } catch (e) {
-        console.error('[admin/cleanup] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
@@ -339,11 +431,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('[Server] 已启动，端口 ' + PORT);
     await initDatabase();
-
-    // 启动时清理一次
     await cleanupExpiredLicenses();
-
-    // 每小时自动清理一次
     setInterval(cleanupExpiredLicenses, 3600 * 1000);
     console.log('[清理] 定时任务已启动，每小时检查一次');
 });
