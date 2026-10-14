@@ -19,6 +19,7 @@ const CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const CODE_REGEX = /^GEN-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/;
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123456';
 
+// ==================== CORS ====================
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -28,6 +29,7 @@ app.use((req, res, next) => {
     next();
 });
 
+// ==================== 工具函数 ====================
 function generateLicenseCode() {
     const part = (len) => {
         let res = '';
@@ -55,32 +57,45 @@ function timingSafeEqual(a, b) {
     return m === 0;
 }
 
+// ==================== 初始化数据库 ====================
 async function initDatabase() {
     try {
-        if (!process.env.DATABASE_URL) {
-            console.error('[DB] 错误: 环境变量 DATABASE_URL 未配置');
-            console.error('[DB] 请到 Railway 项目添加 PostgreSQL 数据库');
+        const url = process.env.DATABASE_URL;
+        console.log('[DB] 检查 DATABASE_URL...');
+        if (!url) {
+            console.error('[DB] 错误: DATABASE_URL 未配置');
+            console.error('[DB] 请到 Railway 项目 Variables 添加 DATABASE_URL 引用');
             return;
         }
+        console.log('[DB] DATABASE_URL 前缀:', url.substring(0, 25) + '...');
+        console.log('[DB] 开始建表...');
+
         await pool.query(
             'CREATE TABLE IF NOT EXISTS licenses (' +
-            'code VARCHAR(32) PRIMARY KEY,' +
-            'machine_id VARCHAR(64),' +
-            'duration_days INTEGER NOT NULL DEFAULT 30,' +
-            'bind_time BIGINT,' +
-            'expire_time BIGINT,' +
-            'last_verify_time BIGINT,' +
-            'is_banned INTEGER DEFAULT 0,' +
-            'remark VARCHAR(255),' +
+            'code VARCHAR(32) PRIMARY KEY, ' +
+            'machine_id VARCHAR(64), ' +
+            'duration_days INTEGER NOT NULL DEFAULT 30, ' +
+            'bind_time BIGINT, ' +
+            'expire_time BIGINT, ' +
+            'last_verify_time BIGINT, ' +
+            'is_banned INTEGER DEFAULT 0, ' +
+            'remark VARCHAR(255), ' +
             'created_time BIGINT NOT NULL' +
             ')'
         );
         console.log('[DB] licenses 表已就绪');
+
+        // 验证连接
+        const r = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
+        console.log('[DB] 当前卡密数量:', r.rows[0].cnt);
     } catch (e) {
-        console.error('[DB] 初始化失败:', e.message);
+        console.error('[DB] 初始化失败 - 消息:', e.message || '(空)');
+        console.error('[DB] 初始化失败 - 代码:', e.code || '(无)');
+        console.error('[DB] 初始化失败 - 详情:', String(e));
     }
 }
 
+// ==================== 用户端 API ====================
 app.post('/api/license/verify', async (req, res) => {
     try {
         const now = Math.floor(Date.now() / 1000);
@@ -124,6 +139,7 @@ app.post('/api/license/verify', async (req, res) => {
             message: isPerm ? '永久有效' : '剩余 ' + daysLeft + ' 天'
         });
     } catch (e) {
+        console.error('[verify] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
@@ -176,10 +192,12 @@ app.post('/api/license/bind', async (req, res) => {
             message: isPerm ? '永久有效授权激活成功' : '激活成功，有效天数 ' + lic.duration_days + ' 天'
         });
     } catch (e) {
+        console.error('[bind] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
+// ==================== 管理员 API ====================
 function adminAuth(req, res, next) {
     const auth = req.headers.authorization || '';
     const token = auth.replace('Bearer ', '').trim();
@@ -193,6 +211,7 @@ app.get('/api/master-serein-8899/list', adminAuth, async (req, res) => {
         const r = await pool.query('SELECT * FROM licenses ORDER BY created_time DESC LIMIT 1000');
         res.json({ status: 'success', data: r.rows });
     } catch (e) {
+        console.error('[admin/list] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
@@ -213,8 +232,10 @@ app.post('/api/master-serein-8899/generate', adminAuth, async (req, res) => {
             );
             generated.push(code);
         }
+        console.log('[admin/generate] 生成了', generated.length, '个卡密');
         res.json({ status: 'success', generated: generated });
     } catch (e) {
+        console.error('[admin/generate] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
@@ -227,6 +248,7 @@ app.post('/api/master-serein-8899/unbind', adminAuth, async (req, res) => {
         );
         res.json({ status: 'success', message: '已解绑' });
     } catch (e) {
+        console.error('[admin/unbind] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
@@ -236,10 +258,12 @@ app.post('/api/master-serein-8899/delete', adminAuth, async (req, res) => {
         await pool.query('DELETE FROM licenses WHERE code = $1', [cleanCode(req.body.code)]);
         res.json({ status: 'success' });
     } catch (e) {
+        console.error('[admin/delete] 错误:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
+// ==================== 管理后台页面 ====================
 app.get('/master-control-serein-8899', (req, res) => {
     try {
         const filePath = path.join(__dirname, 'admin.html');
@@ -247,10 +271,12 @@ app.get('/master-control-serein-8899', (req, res) => {
         res.set('Content-Type', 'text/html; charset=utf-8');
         res.send(html);
     } catch (e) {
+        console.error('[admin page] 错误:', e.message);
         res.status(500).send('admin.html 读取失败: ' + e.message);
     }
 });
 
+// ==================== 健康检查 ====================
 app.get('/', (req, res) => {
     res.send('Deskrawl License Server OK');
 });
@@ -260,10 +286,12 @@ app.get('/health', async (req, res) => {
         await pool.query('SELECT 1');
         res.json({ status: 'ok', db: 'connected' });
     } catch (e) {
+        console.error('[health] 错误:', e.message);
         res.status(500).json({ status: 'error', db: e.message });
     }
 });
 
+// ==================== 启动 ====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('[Server] 已启动，端口 ' + PORT);
