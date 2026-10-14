@@ -19,6 +19,9 @@ const CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const CODE_REGEX = /^GEN-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/;
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123456';
 
+// 过期卡密保留天数（超过这个天数自动清理）
+const CLEANUP_KEEP_DAYS = 30;
+
 // ==================== CORS ====================
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
@@ -64,7 +67,6 @@ async function initDatabase() {
         console.log('[DB] 检查 DATABASE_URL...');
         if (!url) {
             console.error('[DB] 错误: DATABASE_URL 未配置');
-            console.error('[DB] 请到 Railway 项目 Variables 添加 DATABASE_URL 引用');
             return;
         }
         console.log('[DB] DATABASE_URL 前缀:', url.substring(0, 25) + '...');
@@ -85,13 +87,43 @@ async function initDatabase() {
         );
         console.log('[DB] licenses 表已就绪');
 
-        // 验证连接
         const r = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
         console.log('[DB] 当前卡密数量:', r.rows[0].cnt);
     } catch (e) {
         console.error('[DB] 初始化失败 - 消息:', e.message || '(空)');
         console.error('[DB] 初始化失败 - 代码:', e.code || '(无)');
-        console.error('[DB] 初始化失败 - 详情:', String(e));
+    }
+}
+
+// ==================== 清理过期卡密 ====================
+async function cleanupExpiredLicenses() {
+    try {
+        const now = Math.floor(Date.now() / 1000);
+        const threshold = now - (CLEANUP_KEEP_DAYS * 86400);
+
+        // 规则：
+        // 1. 排除永久卡（duration_days >= 99999）
+        // 2. 排除未绑定卡密（machine_id IS NULL），还没卖出去
+        // 3. 排除未过期的
+        // 4. 删除过期超过 CLEANUP_KEEP_DAYS 天的
+        const r = await pool.query(
+            'DELETE FROM licenses ' +
+            'WHERE duration_days < 99999 ' +
+            'AND machine_id IS NOT NULL ' +
+            'AND expire_time > 0 ' +
+            'AND expire_time < $1',
+            [threshold]
+        );
+
+        if (r.rowCount > 0) {
+            console.log('[清理] 删除', r.rowCount, '条过期超过', CLEANUP_KEEP_DAYS, '天的卡密');
+        } else {
+            console.log('[清理] 无过期卡密需要清理');
+        }
+        return r.rowCount;
+    } catch (e) {
+        console.error('[清理] 错误:', e.message);
+        return 0;
     }
 }
 
@@ -263,6 +295,17 @@ app.post('/api/master-serein-8899/delete', adminAuth, async (req, res) => {
     }
 });
 
+// ★ 手动触发清理
+app.post('/api/master-serein-8899/cleanup', adminAuth, async (req, res) => {
+    try {
+        const deleted = await cleanupExpiredLicenses();
+        res.json({ status: 'success', message: '已清理 ' + deleted + ' 条过期卡密', deleted: deleted });
+    } catch (e) {
+        console.error('[admin/cleanup] 错误:', e.message);
+        res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
 // ==================== 管理后台页面 ====================
 app.get('/master-control-serein-8899', (req, res) => {
     try {
@@ -296,4 +339,11 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('[Server] 已启动，端口 ' + PORT);
     await initDatabase();
+
+    // 启动时清理一次
+    await cleanupExpiredLicenses();
+
+    // 每小时自动清理一次
+    setInterval(cleanupExpiredLicenses, 3600 * 1000);
+    console.log('[清理] 定时任务已启动，每小时检查一次');
 });
