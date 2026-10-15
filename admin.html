@@ -6,7 +6,7 @@
 <style>
 * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
 body { background: #090d16; color: #e2e8f0; margin: 0; padding: 24px; }
-.wrap { max-width: 1400px; margin: 0 auto; }
+.wrap { max-width: 1500px; margin: 0 auto; }
 h1 { color: #38bdf8; font-size: 22px; margin: 0 0 20px; }
 h3 { font-size: 15px; margin: 0 0 12px; color: #f8fafc; }
 h4 { font-size: 14px; margin: 16px 0 8px; color: #f8fafc; }
@@ -14,34 +14,31 @@ h4 { font-size: 14px; margin: 16px 0 8px; color: #f8fafc; }
 input, select, button { padding: 9px 12px; border-radius: 4px; border: 1px solid #374151; background: #0c1322; color: #fff; margin-right: 8px; font-size: 13px; }
 button { background: #2563eb; cursor: pointer; border: none; font-weight: 600; }
 button:hover { background: #1d4ed8; }
-button.green { background: #059669; }
-button.green:hover { background: #047857; }
-button.red { background: #dc2626; }
-button.red:hover { background: #b91c1c; }
-button.orange { background: #b45309; }
-button.orange:hover { background: #92400e; }
-button.purple { background: #7c3aed; }
-button.purple:hover { background: #6d28d9; }
+button.green { background: #059669; } button.green:hover { background: #047857; }
+button.red { background: #dc2626; } button.red:hover { background: #b91c1c; }
+button.orange { background: #b45309; } button.orange:hover { background: #92400e; }
+button.purple { background: #7c3aed; } button.purple:hover { background: #6d28d9; }
+button.gray { background: #4b5563; } button.gray:hover { background: #374151; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { padding: 10px; text-align: left; border-bottom: 1px solid #1f2937; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #1f2937; font-size: 12px; }
 th { color: #94a3b8; }
 .code-cell { font-family: monospace; color: #38bdf8; font-weight: 600; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 #log { color: #94a3b8; font-size: 12px; margin-top: 10px; }
 .stat { color: #94a3b8; font-size: 12px; margin-left: 12px; }
-.online-num { color: #10b981; font-size: 22px; font-weight: 800; font-family: monospace; }
 .stat-label { color: #94a3b8; font-size: 12px; }
 .stat-value { color: #f8fafc; font-size: 16px; font-weight: 700; font-family: monospace; margin-left: 6px; }
 .stat-card { display: inline-block; background: #0c1322; border: 1px solid #1f2937; border-radius: 6px; padding: 10px 16px; margin-right: 12px; margin-bottom: 8px; }
+.online-num { color: #10b981; font-size: 22px; font-weight: 800; font-family: monospace; }
 .badge-assistant { background: #065f46; color: #6ee7b7; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 700; }
 .badge-violence { background: #7f1d1d; color: #fca5a5; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 700; }
+.badge-trial { background: #7c3aed; color: #c4b5fd; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; margin-left: 4px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>Deskrawl 卡密管理后台</h1>
 
-<!-- 登录与操作 -->
 <div class="panel">
     <div class="row">
         <input type="password" id="pwd" placeholder="管理员密码" style="width: 220px;">
@@ -49,82 +46,35 @@ th { color: #94a3b8; }
         <button onclick="loadList()" class="green">刷新列表</button>
         <button onclick="loadOnline()" class="green">刷新在线</button>
         <button onclick="cleanupExpired()" class="orange">清理过期卡密</button>
+        <button onclick="exportCSV()" class="purple">导出 CSV</button>
     </div>
     <div id="log">等待操作...</div>
 </div>
 
-<!-- 实时在线统计 -->
 <div class="panel">
     <h3>实时在线统计</h3>
-
     <div class="row">
-        <div class="stat-card">
-            <div class="stat-label">总在线</div>
-            <div><span id="onlineCount" class="online-num">0</span> <span class="stat-label">人</span></div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">助手在线</div>
-            <div class="stat-value" style="color:#6ee7b7;" id="onlineAssistant">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">暴力在线</div>
-            <div class="stat-value" style="color:#fca5a5;" id="onlineViolence">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">1小时内活跃</div>
-            <div class="stat-value" id="recentCount">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">总卡密</div>
-            <div class="stat-value" id="totalCount">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">助手卡 / 暴力卡</div>
-            <div class="stat-value"><span style="color:#6ee7b7;" id="totalAssistant">0</span> / <span style="color:#fca5a5;" id="totalViolence">0</span></div>
-        </div>
-    </div>
-
-    <div style="font-size:12px;color:#64748b;margin-top:6px;">
-        在线 = 最近 10 分钟内成功验证过的客户端 · 每 30 秒自动刷新
+        <div class="stat-card"><div class="stat-label">总在线</div><div><span id="onlineCount" class="online-num">0</span> <span class="stat-label">人</span></div></div>
+        <div class="stat-card"><div class="stat-label">助手在线</div><div class="stat-value" style="color:#6ee7b7;" id="onlineAssistant">0</div></div>
+        <div class="stat-card"><div class="stat-label">暴力在线</div><div class="stat-value" style="color:#fca5a5;" id="onlineViolence">0</div></div>
+        <div class="stat-card"><div class="stat-label">1小时内活跃</div><div class="stat-value" id="recentCount">0</div></div>
+        <div class="stat-card"><div class="stat-label">总卡密</div><div class="stat-value" id="totalCount">0</div></div>
+        <div class="stat-card"><div class="stat-label">助手卡 / 暴力卡</div><div class="stat-value"><span style="color:#6ee7b7;" id="totalAssistant">0</span> / <span style="color:#fca5a5;" id="totalViolence">0</span></div></div>
     </div>
 
     <h4>在线客户端</h4>
     <table>
-        <thead>
-            <tr>
-                <th>模块</th>
-                <th>卡密</th>
-                <th>机器码</th>
-                <th>备注</th>
-                <th>最后在线</th>
-            </tr>
-        </thead>
-        <tbody id="onlineList">
-            <tr><td colspan="5" style="text-align:center;color:#64748b;">加载中...</td></tr>
-        </tbody>
+        <thead><tr><th>模块</th><th>卡密</th><th>机器码</th><th>备注</th><th>最后在线</th></tr></thead>
+        <tbody id="onlineList"></tbody>
     </table>
 
     <h4>未授权尝试（最近 1 小时）</h4>
-    <div style="font-size:12px;color:#64748b;margin-bottom:6px;">
-        这些是发过验证请求但服务器查不到有效卡密的客户端，可能是破解版、旧卡密或误用
-    </div>
     <table>
-        <thead>
-            <tr>
-                <th>模块</th>
-                <th>机器码</th>
-                <th>尝试的卡密</th>
-                <th>原因</th>
-                <th>时间</th>
-            </tr>
-        </thead>
-        <tbody id="unauthList">
-            <tr><td colspan="5" style="text-align:center;color:#64748b;">加载中...</td></tr>
-        </tbody>
+        <thead><tr><th>模块</th><th>机器码</th><th>尝试的卡密</th><th>原因</th><th>时间</th></tr></thead>
+        <tbody id="unauthList"></tbody>
     </table>
 </div>
 
-<!-- 批量生成卡密 -->
 <div class="panel">
     <h3>批量生成卡密</h3>
     <div class="row">
@@ -134,13 +84,16 @@ th { color: #94a3b8; }
             <option value="violence">暴力版</option>
         </select>
         <label style="color:#94a3b8;font-size:13px;">时长:</label>
-        <select id="genDays">
+        <select id="genDuration">
             <option value="1">天卡 (1天)</option>
             <option value="7">周卡 (7天)</option>
             <option value="30" selected>月卡 (30天)</option>
             <option value="90">季卡 (90天)</option>
             <option value="365">年卡 (365天)</option>
             <option value="99999">永久卡</option>
+            <option value="h1">试用卡 (1小时)</option>
+            <option value="h6">试用卡 (6小时)</option>
+            <option value="h24">试用卡 (24小时)</option>
         </select>
         <input type="number" id="genCount" value="1" min="1" max="100" style="width:80px;" placeholder="数量">
         <input type="text" id="genRemark" placeholder="备注（可选）" style="width:200px;">
@@ -148,27 +101,33 @@ th { color: #94a3b8; }
     </div>
 </div>
 
-<!-- 卡密列表 -->
 <div class="panel">
     <h3>卡密列表</h3>
     <div class="row">
-        <label style="color:#94a3b8;font-size:13px;">筛选:</label>
+        <input type="text" id="searchInput" placeholder="搜索卡密/备注/机器码..." style="width:300px;" oninput="loadList()">
         <select id="filterModule" onchange="loadList()">
-            <option value="">全部</option>
+            <option value="">全部模块</option>
             <option value="assistant">只看助手版</option>
             <option value="violence">只看暴力版</option>
         </select>
+        <button onclick="loadList()" class="gray" style="padding:6px 12px;font-size:12px;">清空搜索</button>
     </div>
+
+    <div class="row" style="margin-top:12px;">
+        <span style="color:#fbbf24;font-weight:600;">批量操作：</span>
+        <button onclick="batchExtend()" class="orange" style="padding:6px 12px;font-size:12px;">延期选中</button>
+        <button onclick="batchUnbind()" class="orange" style="padding:6px 12px;font-size:12px;">解绑选中</button>
+        <button onclick="batchDelete()" class="red" style="padding:6px 12px;font-size:12px;">删除选中</button>
+        <button onclick="selectAll()" class="gray" style="padding:6px 12px;font-size:12px;">全选</button>
+        <button onclick="selectNone()" class="gray" style="padding:6px 12px;font-size:12px;">全不选</button>
+        <span id="selCount" class="stat"></span>
+    </div>
+
     <table>
         <thead>
             <tr>
-                <th>模块</th>
-                <th>卡密</th>
-                <th>时长</th>
-                <th>机器码</th>
-                <th>到期</th>
-                <th>备注</th>
-                <th>操作</th>
+                <th style="width:30px;"><input type="checkbox" id="selAll" onchange="toggleAll(this.checked)"></th>
+                <th>模块</th><th>卡密</th><th>时长</th><th>机器码</th><th>到期</th><th>备注</th><th>操作</th>
             </tr>
         </thead>
         <tbody id="list"></tbody>
@@ -182,7 +141,6 @@ th { color: #94a3b8; }
 function getPwd() { return document.getElementById('pwd').value.trim(); }
 function savePwd() { localStorage.setItem('deskrawl_admin_pwd', getPwd()); log('密码已保存'); }
 function log(msg) { document.getElementById('log').innerText = '[' + new Date().toLocaleTimeString() + '] ' + msg; }
-
 function moduleBadge(m) {
     if (m === 'violence') return '<span class="badge-violence">暴力版</span>';
     return '<span class="badge-assistant">助手版</span>';
@@ -197,20 +155,22 @@ window.addEventListener('load', function() {
     }
 });
 
-setInterval(function() {
-    if (getPwd()) loadOnline();
-}, 30000);
+setInterval(function() { if (getPwd()) loadOnline(); }, 30000);
 
-// ==================== 卡密列表 ====================
+var _lastData = [];
+
+// ==================== 列表 ====================
 async function loadList() {
     var pwd = getPwd();
     if (!pwd) return log('请先输入管理员密码');
     try {
-        var r = await fetch('/api/master-serein-8899/list', {
-            headers: { 'Authorization': 'Bearer ' + pwd }
-        });
+        var search = document.getElementById('searchInput').value.trim();
+        var module = document.getElementById('filterModule').value;
+        var url = '/api/master-serein-8899/list?search=' + encodeURIComponent(search) + '&module=' + encodeURIComponent(module);
+        var r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + pwd } });
         var d = await r.json();
         if (d.status !== 'success') return log('认证失败：' + (d.message || ''));
+        _lastData = d.data;
         renderList(d.data);
         log('已加载 ' + d.data.length + ' 条卡密');
     } catch (e) { log('加载失败：' + e.message); }
@@ -219,16 +179,10 @@ async function loadList() {
 function renderList(arr) {
     var tb = document.getElementById('list');
     var stat = document.getElementById('stat');
-    var filter = document.getElementById('filterModule').value;
-
-    // 筛选
-    if (filter) {
-        arr = arr.filter(function(item) { return item.module === filter; });
-    }
-
     if (!arr || arr.length === 0) {
-        tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">暂无卡密</td></tr>';
+        tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b;">暂无卡密</td></tr>';
         if (stat) stat.innerText = '总计: 0';
+        updateSelCount();
         return;
     }
     tb.innerHTML = '';
@@ -236,8 +190,13 @@ function renderList(arr) {
     var now = Math.floor(Date.now() / 1000);
     arr.forEach(function(item) {
         var isPerm = item.duration_days >= 99999;
-        var days = isPerm ? '<span style="color:#fbbf24;font-weight:600;">永久</span>' : item.duration_days + ' 天';
-        var hwid = item.machine_id ? item.machine_id.substring(0, 20) + '...' : '<span style="color:#64748b;">未绑定</span>';
+        var isTrial = (item.duration_hours || 0) > 0;
+        var days;
+        if (isPerm) days = '<span style="color:#fbbf24;font-weight:600;">永久</span>';
+        else if (isTrial) days = '<span class="badge-trial">试用 ' + item.duration_hours + 'h</span>';
+        else days = item.duration_days + ' 天';
+
+        var hwid = item.machine_id ? item.machine_id.substring(0, 16) + '...' : '<span style="color:#64748b;">未绑定</span>';
         var exp = isPerm ? '永久' : (item.expire_time ? new Date(Number(item.expire_time) * 1000).toLocaleString() : '<span style="color:#64748b;">未激活</span>');
 
         if (item.machine_id) bound++; else unbound++;
@@ -245,19 +204,52 @@ function renderList(arr) {
 
         var tr = document.createElement('tr');
         tr.innerHTML =
+            '<td><input type="checkbox" class="row-sel" data-code="' + item.code + '" onchange="updateSelCount()"></td>' +
             '<td>' + moduleBadge(item.module) + '</td>' +
             '<td class="code-cell">' + item.code + '</td>' +
             '<td>' + days + '</td>' +
             '<td style="font-size:11px;font-family:monospace;">' + hwid + '</td>' +
-            '<td style="font-size:12px;">' + exp + '</td>' +
+            '<td style="font-size:11px;">' + exp + '</td>' +
             '<td>' + (item.remark || '-') + '</td>' +
             '<td>' +
-                (item.machine_id ? '<button class="orange" onclick="unbind(\'' + item.code + '\')">解绑</button>' : '') +
-                '<button class="red" onclick="delCode(\'' + item.code + '\')">删除</button>' +
+                (item.machine_id ? '<button class="orange" onclick="unbind(\'' + item.code + '\')" style="padding:4px 8px;font-size:11px;">解绑</button>' : '') +
+                '<button class="gray" onclick="toggleBan(\'' + item.code + '\',' + (item.is_banned === 1 ? 0 : 1) + ')" style="padding:4px 8px;font-size:11px;">' + (item.is_banned === 1 ? '解冻' : '冻结') + '</button> ' +
+                '<button class="red" onclick="delCode(\'' + item.code + '\')" style="padding:4px 8px;font-size:11px;">删除</button>' +
             '</td>';
         tb.appendChild(tr);
     });
     if (stat) stat.innerText = '总计: ' + arr.length + ' | 已绑定: ' + bound + ' | 未绑定: ' + unbound + ' | 已过期: ' + expired;
+    updateSelCount();
+}
+
+function getSelectedCodes() {
+    var cbs = document.querySelectorAll('.row-sel:checked');
+    var codes = [];
+    cbs.forEach(function(cb) { codes.push(cb.getAttribute('data-code')); });
+    return codes;
+}
+
+function updateSelCount() {
+    var codes = getSelectedCodes();
+    var el = document.getElementById('selCount');
+    if (el) el.innerText = '已选 ' + codes.length + ' 张';
+}
+
+function selectAll() {
+    document.querySelectorAll('.row-sel').forEach(function(cb) { cb.checked = true; });
+    document.getElementById('selAll').checked = true;
+    updateSelCount();
+}
+
+function selectNone() {
+    document.querySelectorAll('.row-sel').forEach(function(cb) { cb.checked = false; });
+    document.getElementById('selAll').checked = false;
+    updateSelCount();
+}
+
+function toggleAll(checked) {
+    document.querySelectorAll('.row-sel').forEach(function(cb) { cb.checked = checked; });
+    updateSelCount();
 }
 
 // ==================== 生成卡密 ====================
@@ -265,14 +257,14 @@ async function genCodes() {
     var pwd = getPwd();
     if (!pwd) return log('请先输入管理员密码');
     var module = document.getElementById('genModule').value;
-    var days = document.getElementById('genDays').value;
+    var duration = document.getElementById('genDuration').value;
     var count = document.getElementById('genCount').value;
     var remark = document.getElementById('genRemark').value;
     try {
         var r = await fetch('/api/master-serein-8899/generate', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ count: count, days: days, module: module, remark: remark })
+            body: JSON.stringify({ count: count, duration: duration, module: module, remark: remark })
         });
         var d = await r.json();
         if (d.status !== 'success') return log('生成失败：' + d.message);
@@ -281,9 +273,9 @@ async function genCodes() {
     } catch (e) { log('生成失败：' + e.message); }
 }
 
-// ==================== 解绑 / 删除 ====================
+// ==================== 单个操作 ====================
 async function unbind(code) {
-    if (!confirm('确认解绑 ' + code + '？\n解绑后用户可以在新电脑重新激活。')) return;
+    if (!confirm('确认解绑 ' + code + '？')) return;
     var pwd = getPwd();
     await fetch('/api/master-serein-8899/unbind', {
         method: 'POST',
@@ -295,7 +287,7 @@ async function unbind(code) {
 }
 
 async function delCode(code) {
-    if (!confirm('确认彻底删除 ' + code + '？\n此操作不可恢复。')) return;
+    if (!confirm('确认彻底删除 ' + code + '？')) return;
     var pwd = getPwd();
     await fetch('/api/master-serein-8899/delete', {
         method: 'POST',
@@ -306,26 +298,125 @@ async function delCode(code) {
     loadList();
 }
 
-// ==================== 清理 ====================
-async function cleanupExpired() {
-    if (!confirm('确认清理过期超过 30 天的卡密？\n\n规则：\n1. 永久卡不受影响\n2. 未绑定卡密不受影响\n3. 只有已绑定且过期超过 30 天的会被删除')) return;
+async function toggleBan(code, banned) {
     var pwd = getPwd();
-    if (!pwd) return log('请先输入管理员密码');
+    await fetch('/api/master-serein-8899/ban', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code, banned: banned })
+    });
+    log(banned ? ('已冻结 ' + code) : ('已解冻 ' + code));
+    loadList();
+}
+
+// ==================== 批量操作 ====================
+async function batchExtend() {
+    var codes = getSelectedCodes();
+    if (codes.length === 0) return alert('请先选择卡密');
+    var days = prompt('延期天数（负数=缩短）:', '30');
+    if (days === null) return;
+    var n = parseInt(days);
+    if (isNaN(n) || n === 0) return alert('无效天数');
+
+    if (!confirm('确认给 ' + codes.length + ' 张卡密延期 ' + n + ' 天？')) return;
+    var pwd = getPwd();
     try {
-        var r = await fetch('/api/master-serein-8899/cleanup', {
+        var r = await fetch('/api/master-serein-8899/extend', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
+            body: JSON.stringify({ codes: codes, days: n })
         });
         var d = await r.json();
-        if (d.status === 'success') {
-            log(d.message);
-            loadList();
-            loadOnline();
-        } else {
-            log('清理失败：' + (d.message || ''));
-        }
+        log(d.message || '操作完成');
+        loadList();
+    } catch (e) { log('失败：' + e.message); }
+}
+
+async function batchUnbind() {
+    var codes = getSelectedCodes();
+    if (codes.length === 0) return alert('请先选择卡密');
+    if (!confirm('确认解绑选中 ' + codes.length + ' 张卡密？')) return;
+    var pwd = getPwd();
+    try {
+        var r = await fetch('/api/master-serein-8899/batch-unbind', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codes: codes })
+        });
+        var d = await r.json();
+        log(d.message || '操作完成');
+        loadList();
+    } catch (e) { log('失败：' + e.message); }
+}
+
+async function batchDelete() {
+    var codes = getSelectedCodes();
+    if (codes.length === 0) return alert('请先选择卡密');
+    if (!confirm('确认彻底删除选中 ' + codes.length + ' 张卡密？此操作不可恢复！')) return;
+    var pwd = getPwd();
+    try {
+        var r = await fetch('/api/master-serein-8899/batch-delete', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codes: codes })
+        });
+        var d = await r.json();
+        log(d.message || '操作完成');
+        loadList();
+    } catch (e) { log('失败：' + e.message); }
+}
+
+// ==================== 清理 ====================
+async function cleanupExpired() {
+    if (!confirm('确认清理过期超过 30 天的卡密？')) return;
+    var pwd = getPwd();
+    try {
+        var r = await fetch('/api/master-serein-8899/cleanup', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' }, body: '{}'
+        });
+        var d = await r.json();
+        log(d.message || '清理完成');
+        loadList();
+        loadOnline();
     } catch (e) { log('清理失败：' + e.message); }
+}
+
+// ==================== 导出 CSV ====================
+function exportCSV() {
+    if (!_lastData || _lastData.length === 0) return alert('无可导出数据');
+    var lines = ['模块,卡密,时长,机器码,绑定时间,到期时间,备注,创建时间,状态'];
+    var now = Math.floor(Date.now() / 1000);
+
+    _lastData.forEach(function(item) {
+        var isPerm = item.duration_days >= 99999;
+        var isTrial = (item.duration_hours || 0) > 0;
+        var duration = isPerm ? '永久' : (isTrial ? (item.duration_hours + '小时') : (item.duration_days + '天'));
+        var status = item.is_banned === 1 ? '已冻结' : (!item.machine_id ? '未绑定' : (Number(item.expire_time) < now ? '已过期' : '正常'));
+
+        lines.push([
+            item.module === 'violence' ? '暴力版' : '助手版',
+            item.code,
+            duration,
+            item.machine_id || '',
+            item.bind_time ? new Date(Number(item.bind_time) * 1000).toLocaleString() : '',
+            item.expire_time ? new Date(Number(item.expire_time) * 1000).toLocaleString() : '',
+            '"' + (item.remark || '').replace(/"/g, '""') + '"',
+            item.created_time ? new Date(Number(item.created_time) * 1000).toLocaleString() : '',
+            status
+        ].join(','));
+    });
+
+    var csv = '\ufeff' + lines.join('\n');   // BOM 让 Excel 识别 UTF-8
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'deskrawl_licenses_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    log('已导出 ' + _lastData.length + ' 条到 CSV');
 }
 
 // ==================== 在线统计 ====================
@@ -333,9 +424,7 @@ async function loadOnline() {
     var pwd = getPwd();
     if (!pwd) return;
     try {
-        var r = await fetch('/api/master-serein-8899/online', {
-            headers: { 'Authorization': 'Bearer ' + pwd }
-        });
+        var r = await fetch('/api/master-serein-8899/online', { headers: { 'Authorization': 'Bearer ' + pwd } });
         var d = await r.json();
         if (d.status !== 'success') return;
 
@@ -347,7 +436,6 @@ async function loadOnline() {
         document.getElementById('onlineAssistant').innerText = d.online_assistant;
         document.getElementById('onlineViolence').innerText = d.online_violence;
 
-        // 在线列表
         var tb = document.getElementById('onlineList');
         tb.innerHTML = '';
         if (!d.online_list || d.online_list.length === 0) {
@@ -365,7 +453,6 @@ async function loadOnline() {
             });
         }
 
-        // 未授权列表
         var utb = document.getElementById('unauthList');
         utb.innerHTML = '';
         if (!d.unauthorized_list || d.unauthorized_list.length === 0) {
@@ -373,19 +460,19 @@ async function loadOnline() {
         } else {
             d.unauthorized_list.forEach(function(item) {
                 var tr = document.createElement('tr');
-                var reasonText = item.reason || '';
-                if (reasonText === 'not_found') reasonText = '卡密不存在';
-                else if (reasonText === 'banned') reasonText = '已冻结';
-                else if (reasonText === 'expired') reasonText = '已过期';
-                else if (reasonText === 'bind_not_found') reasonText = '绑定-不存在';
-                else if (reasonText === 'bind_banned') reasonText = '绑定-已冻结';
-                else if (reasonText === 'bind_other_machine') reasonText = '绑定-已在其他电脑';
+                var rt = item.reason || '';
+                if (rt === 'not_found') rt = '卡密不存在';
+                else if (rt === 'banned') rt = '已冻结';
+                else if (rt === 'expired') rt = '已过期';
+                else if (rt === 'bind_not_found') rt = '绑定-不存在';
+                else if (rt === 'bind_banned') rt = '绑定-已冻结';
+                else if (rt === 'bind_other_machine') rt = '绑定-已在其他电脑';
 
                 tr.innerHTML =
                     '<td>' + moduleBadge(item.module) + '</td>' +
                     '<td style="font-size:11px;font-family:monospace;">' + (item.machine_id || '-') + '</td>' +
                     '<td style="font-size:11px;font-family:monospace;">' + (item.code || '-') + '</td>' +
-                    '<td style="color:#fbbf24;">' + reasonText + '</td>' +
+                    '<td style="color:#fbbf24;">' + rt + '</td>' +
                     '<td style="font-size:12px;">' + new Date(Number(item.attempt_time) * 1000).toLocaleString() + '</td>';
                 utb.appendChild(tr);
             });
