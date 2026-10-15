@@ -12,7 +12,10 @@ app.use(express.json());
 
 const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 15000,   // 连接超时 15 秒
+    idleTimeoutMillis: 30000,         // 空闲 30 秒释放
+    max: 5                            // 最大 5 个连接
 });
 
 const CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -46,9 +49,6 @@ function cleanModule(s) {
     const m = s ? String(s).trim().toLowerCase() : 'assistant';
     return (m === 'violence') ? 'violence' : 'assistant';
 }
-function moduleToCn(m) {
-    return m === 'violence' ? '暴力版' : '助手版';
-}
 
 function timingSafeEqual(a, b) {
     if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -58,59 +58,78 @@ function timingSafeEqual(a, b) {
     return m === 0;
 }
 
+// ==================== 通用重试包装 ====================
+async function withRetry(fn, label, maxAttempts = 5, delayMs = 5000) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (e) {
+            const isRetryable = (e.code === 'ETIMEDOUT' || e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET' || e.message === '');
+            console.error(`[${label}] 第 ${attempt} 次失败:`, e.message || e.code || '(空)');
+            if (!isRetryable || attempt === maxAttempts) {
+                throw e;
+            }
+            console.log(`[${label}] ${delayMs}ms 后重试...`);
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+    }
+}
+
 // ==================== 初始化 ====================
 async function initDatabase() {
+    const url = process.env.DATABASE_URL;
+    console.log('[DB] 检查 DATABASE_URL...');
+    if (!url) {
+        console.error('[DB] 错误: DATABASE_URL 未配置');
+        return;
+    }
+    console.log('[DB] DATABASE_URL 前缀:', url.substring(0, 25) + '...');
+    console.log('[DB] 开始建表...');
+
     try {
-        const url = process.env.DATABASE_URL;
-        console.log('[DB] 检查 DATABASE_URL...');
-        if (!url) {
-            console.error('[DB] 错误: DATABASE_URL 未配置');
-            return;
-        }
-        console.log('[DB] DATABASE_URL 前缀:', url.substring(0, 25) + '...');
-        console.log('[DB] 开始建表...');
+        await withRetry(async () => {
+            // licenses 表
+            await pool.query(
+                'CREATE TABLE IF NOT EXISTS licenses (' +
+                'code VARCHAR(32) PRIMARY KEY, ' +
+                'machine_id VARCHAR(64), ' +
+                'duration_days INTEGER NOT NULL DEFAULT 30, ' +
+                'bind_time BIGINT, ' +
+                'expire_time BIGINT, ' +
+                'last_verify_time BIGINT, ' +
+                'is_banned INTEGER DEFAULT 0, ' +
+                'remark VARCHAR(255), ' +
+                'module VARCHAR(20) DEFAULT \'assistant\', ' +
+                'created_time BIGINT NOT NULL' +
+                ')'
+            );
 
-        await pool.query(
-            'CREATE TABLE IF NOT EXISTS licenses (' +
-            'code VARCHAR(32) PRIMARY KEY, ' +
-            'machine_id VARCHAR(64), ' +
-            'duration_days INTEGER NOT NULL DEFAULT 30, ' +
-            'bind_time BIGINT, ' +
-            'expire_time BIGINT, ' +
-            'last_verify_time BIGINT, ' +
-            'is_banned INTEGER DEFAULT 0, ' +
-            'remark VARCHAR(255), ' +
-            'module VARCHAR(20) DEFAULT \'assistant\', ' +
-            'created_time BIGINT NOT NULL' +
-            ')'
-        );
+            // 对已有表补字段
+            try {
+                await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'");
+            } catch (e) { }
 
-        // 对已有表补字段
-        try {
-            await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'");
-            console.log('[DB] module 字段已确认');
-        } catch (e) {
-            console.log('[DB] module 字段已存在或添加失败:', e.message);
-        }
+            // 未授权表
+            await pool.query(
+                'CREATE TABLE IF NOT EXISTS unauthorized_logs (' +
+                'id SERIAL PRIMARY KEY, ' +
+                'machine_id VARCHAR(64), ' +
+                'code VARCHAR(32), ' +
+                'reason VARCHAR(64), ' +
+                'module VARCHAR(20) DEFAULT \'assistant\', ' +
+                'attempt_time BIGINT NOT NULL' +
+                ')'
+            );
 
-        await pool.query(
-            'CREATE TABLE IF NOT EXISTS unauthorized_logs (' +
-            'id SERIAL PRIMARY KEY, ' +
-            'machine_id VARCHAR(64), ' +
-            'code VARCHAR(32), ' +
-            'reason VARCHAR(64), ' +
-            'module VARCHAR(20) DEFAULT \'assistant\', ' +
-            'attempt_time BIGINT NOT NULL' +
-            ')'
-        );
-
-        try {
-            await pool.query("ALTER TABLE unauthorized_logs ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'");
-        } catch (e) { }
+            try {
+                await pool.query("ALTER TABLE unauthorized_logs ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'");
+            } catch (e) { }
+        }, 'DB', 5, 5000);
 
         console.log('[DB] licenses 表已就绪');
         console.log('[DB] unauthorized_logs 表已就绪');
 
+        // 统计数据
         const r = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
         console.log('[DB] 当前卡密数量:', r.rows[0].cnt);
 
@@ -118,8 +137,7 @@ async function initDatabase() {
         const rv = await pool.query("SELECT COUNT(*) AS cnt FROM licenses WHERE module = 'violence'");
         console.log('[DB] 助手版:', ra.rows[0].cnt, '暴力版:', rv.rows[0].cnt);
     } catch (e) {
-        console.error('[DB] 初始化失败 - 消息:', e.message || '(空)');
-        console.error('[DB] 初始化失败 - 代码:', e.code || '(无)');
+        console.error('[DB] 初始化彻底失败:', e.message || e.code);
     }
 }
 
@@ -146,7 +164,7 @@ async function cleanupExpiredLicenses() {
         if (r.rowCount > 0) console.log('[清理] 删除', r.rowCount, '条过期卡密');
         if (r2.rowCount > 0) console.log('[清理] 删除', r2.rowCount, '条未授权记录');
     } catch (e) {
-        console.error('[清理] 错误:', e.message);
+        console.error('[清理] 错误:', e.message || e.code);
     }
 }
 
@@ -219,7 +237,7 @@ app.post('/api/license/verify', async (req, res) => {
         });
     } catch (e) {
         console.error('[verify] 错误:', e.message);
-        res.status(500).json({ status: 'error', message: e.message });
+        res.status(500).json({ status: 'error', message: e.message || 'DB 错误' });
     }
 });
 
@@ -280,7 +298,7 @@ app.post('/api/license/bind', async (req, res) => {
         });
     } catch (e) {
         console.error('[bind] 错误:', e.message);
-        res.status(500).json({ status: 'error', message: e.message });
+        res.status(500).json({ status: 'error', message: e.message || 'DB 错误' });
     }
 });
 
@@ -311,26 +329,19 @@ app.get('/api/master-serein-8899/online', adminAuth, async (req, res) => {
 
         const onlineResult = await pool.query(
             'SELECT code, machine_id, remark, last_verify_time, duration_days, expire_time, module ' +
-            'FROM licenses ' +
-            'WHERE last_verify_time >= $1 ' +
-            'ORDER BY last_verify_time DESC',
+            'FROM licenses WHERE last_verify_time >= $1 ORDER BY last_verify_time DESC',
             [onlineThreshold]
         );
-
         const recentResult = await pool.query(
             'SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1',
             [recentThreshold]
         );
-
         const totalBoundResult = await pool.query(
             'SELECT COUNT(*) AS cnt FROM licenses WHERE machine_id IS NOT NULL'
         );
-
         const totalResult = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
-
         const totalAssistant = await pool.query("SELECT COUNT(*) AS cnt FROM licenses WHERE module = 'assistant'");
         const totalViolence = await pool.query("SELECT COUNT(*) AS cnt FROM licenses WHERE module = 'violence'");
-
         const onlineAssistant = await pool.query(
             "SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1 AND module = 'assistant'",
             [onlineThreshold]
@@ -339,11 +350,9 @@ app.get('/api/master-serein-8899/online', adminAuth, async (req, res) => {
             "SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1 AND module = 'violence'",
             [onlineThreshold]
         );
-
         const unauthResult = await pool.query(
             'SELECT machine_id, code, reason, module, attempt_time FROM unauthorized_logs ' +
-            'WHERE attempt_time >= $1 ' +
-            'ORDER BY attempt_time DESC LIMIT 50',
+            'WHERE attempt_time >= $1 ORDER BY attempt_time DESC LIMIT 50',
             [recentThreshold]
         );
 
@@ -447,11 +456,16 @@ app.get('/health', async (req, res) => {
     }
 });
 
+// ==================== 启动 ====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('[Server] 已启动，端口 ' + PORT);
+
+    // 等待 2 秒，让 Postgres 有时间准备
+    await new Promise(r => setTimeout(r, 2000));
+
     await initDatabase();
     await cleanupExpiredLicenses();
     setInterval(cleanupExpiredLicenses, 3600 * 1000);
-    console.log('[清理] 定时任务已启动');
+    console.log('[清理] 定时任务已启动，每小时检查一次');
 });
