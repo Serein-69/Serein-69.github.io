@@ -13,9 +13,9 @@ app.use(express.json());
 const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 15000,   // 连接超时 15 秒
-    idleTimeoutMillis: 30000,         // 空闲 30 秒释放
-    max: 5                            // 最大 5 个连接
+    connectionTimeoutMillis: 15000,
+    idleTimeoutMillis: 30000,
+    max: 5
 });
 
 const CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -58,7 +58,6 @@ function timingSafeEqual(a, b) {
     return m === 0;
 }
 
-// ==================== 通用重试包装 ====================
 async function withRetry(fn, label, maxAttempts = 5, delayMs = 5000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
@@ -66,35 +65,37 @@ async function withRetry(fn, label, maxAttempts = 5, delayMs = 5000) {
         } catch (e) {
             const isRetryable = (e.code === 'ETIMEDOUT' || e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET' || e.message === '');
             console.error(`[${label}] 第 ${attempt} 次失败:`, e.message || e.code || '(空)');
-            if (!isRetryable || attempt === maxAttempts) {
-                throw e;
-            }
+            if (!isRetryable || attempt === maxAttempts) throw e;
             console.log(`[${label}] ${delayMs}ms 后重试...`);
             await new Promise(r => setTimeout(r, delayMs));
         }
     }
 }
 
+// 计算总秒数（永久卡返回 -1）
+function getTotalSeconds(durationDays, durationHours) {
+    if (durationDays >= 99999) return -1;
+    return (durationDays || 0) * 86400 + (durationHours || 0) * 3600;
+}
+
 // ==================== 初始化 ====================
 async function initDatabase() {
     const url = process.env.DATABASE_URL;
     console.log('[DB] 检查 DATABASE_URL...');
-    if (!url) {
-        console.error('[DB] 错误: DATABASE_URL 未配置');
-        return;
-    }
+    if (!url) { console.error('[DB] 错误: DATABASE_URL 未配置'); return; }
     console.log('[DB] DATABASE_URL 前缀:', url.substring(0, 25) + '...');
     console.log('[DB] 开始建表...');
 
     try {
         await withRetry(async () => {
-            // licenses 表
             await pool.query(
                 'CREATE TABLE IF NOT EXISTS licenses (' +
                 'code VARCHAR(32) PRIMARY KEY, ' +
                 'machine_id VARCHAR(64), ' +
                 'duration_days INTEGER NOT NULL DEFAULT 30, ' +
+                'duration_hours INTEGER DEFAULT 0, ' +      // 试用卡
                 'bind_time BIGINT, ' +
+                'first_bind_time BIGINT DEFAULT 0, ' +      // 防换电脑续命
                 'expire_time BIGINT, ' +
                 'last_verify_time BIGINT, ' +
                 'is_banned INTEGER DEFAULT 0, ' +
@@ -104,12 +105,11 @@ async function initDatabase() {
                 ')'
             );
 
-            // 对已有表补字段
-            try {
-                await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'");
-            } catch (e) { }
+            // 兼容已有表
+            try { await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'"); } catch (e) { }
+            try { await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS duration_hours INTEGER DEFAULT 0"); } catch (e) { }
+            try { await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS first_bind_time BIGINT DEFAULT 0"); } catch (e) { }
 
-            // 未授权表
             await pool.query(
                 'CREATE TABLE IF NOT EXISTS unauthorized_logs (' +
                 'id SERIAL PRIMARY KEY, ' +
@@ -121,15 +121,12 @@ async function initDatabase() {
                 ')'
             );
 
-            try {
-                await pool.query("ALTER TABLE unauthorized_logs ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'");
-            } catch (e) { }
+            try { await pool.query("ALTER TABLE unauthorized_logs ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'"); } catch (e) { }
         }, 'DB', 5, 5000);
 
         console.log('[DB] licenses 表已就绪');
         console.log('[DB] unauthorized_logs 表已就绪');
 
-        // 统计数据
         const r = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
         console.log('[DB] 当前卡密数量:', r.rows[0].cnt);
 
@@ -168,7 +165,6 @@ async function cleanupExpiredLicenses() {
     }
 }
 
-// ==================== 未授权记录 ====================
 async function logUnauthorized(machineId, code, reason, module) {
     try {
         const now = Math.floor(Date.now() / 1000);
@@ -176,9 +172,7 @@ async function logUnauthorized(machineId, code, reason, module) {
             'INSERT INTO unauthorized_logs (machine_id, code, reason, module, attempt_time) VALUES ($1, $2, $3, $4, $5)',
             [machineId || '', code || '', reason, module || 'assistant', now]
         );
-    } catch (e) {
-        console.error('[unauth-log] 错误:', e.message);
-    }
+    } catch (e) { console.error('[unauth-log] 错误:', e.message); }
 }
 
 // ==================== 用户端 API ====================
@@ -189,16 +183,11 @@ app.post('/api/license/verify', async (req, res) => {
         const rawCode = cleanCode(req.body.code);
         const module = cleanModule(req.body.module);
 
-        if (!machineId && !rawCode) {
-            return res.json({ status: 'error', message: '参数无效' });
-        }
+        if (!machineId && !rawCode) return res.json({ status: 'error', message: '参数无效' });
 
         let lic = null;
         if (machineId) {
-            const r = await pool.query(
-                'SELECT * FROM licenses WHERE machine_id = $1 AND module = $2',
-                [machineId, module]
-            );
+            const r = await pool.query('SELECT * FROM licenses WHERE machine_id = $1 AND module = $2', [machineId, module]);
             lic = r.rows[0];
         }
         if (!lic && rawCode) {
@@ -209,14 +198,8 @@ app.post('/api/license/verify', async (req, res) => {
             lic = r.rows[0];
         }
 
-        if (!lic) {
-            await logUnauthorized(machineId, rawCode, 'not_found', module);
-            return res.json({ status: 'error', message: '设备未授权' });
-        }
-        if (lic.is_banned === 1) {
-            await logUnauthorized(machineId, lic.code, 'banned', module);
-            return res.json({ status: 'error', message: '授权已被冻结' });
-        }
+        if (!lic) { await logUnauthorized(machineId, rawCode, 'not_found', module); return res.json({ status: 'error', message: '设备未授权' }); }
+        if (lic.is_banned === 1) { await logUnauthorized(machineId, lic.code, 'banned', module); return res.json({ status: 'error', message: '授权已被冻结' }); }
 
         const isPerm = lic.duration_days >= 99999;
         if (!isPerm && lic.expire_time && Number(lic.expire_time) < now) {
@@ -249,10 +232,8 @@ app.post('/api/license/bind', async (req, res) => {
         const module = cleanModule(req.body.module);
 
         if (!rawCode) return res.json({ status: 'error', message: '卡密代码不能为空' });
-        if (!rawMachineId || rawMachineId.length < 8)
-            return res.json({ status: 'error', message: '硬件特征码无效' });
-        if (!CODE_REGEX.test(rawCode))
-            return res.json({ status: 'error', message: '卡密格式不正确' });
+        if (!rawMachineId || rawMachineId.length < 8) return res.json({ status: 'error', message: '硬件特征码无效' });
+        if (!CODE_REGEX.test(rawCode)) return res.json({ status: 'error', message: '卡密格式不正确' });
 
         const r = await pool.query(
             "SELECT * FROM licenses WHERE (code = $1 OR REPLACE(code,'-','') = REPLACE($1,'-','')) AND module = $2",
@@ -260,14 +241,8 @@ app.post('/api/license/bind', async (req, res) => {
         );
         const lic = r.rows[0];
 
-        if (!lic) {
-            await logUnauthorized(rawMachineId, rawCode, 'bind_not_found', module);
-            return res.json({ status: 'error', message: '卡密不存在或与当前模块不匹配' });
-        }
-        if (lic.is_banned === 1) {
-            await logUnauthorized(rawMachineId, lic.code, 'bind_banned', module);
-            return res.json({ status: 'error', message: '卡密已被冻结' });
-        }
+        if (!lic) { await logUnauthorized(rawMachineId, rawCode, 'bind_not_found', module); return res.json({ status: 'error', message: '卡密不存在或与当前模块不匹配' }); }
+        if (lic.is_banned === 1) { await logUnauthorized(rawMachineId, lic.code, 'bind_banned', module); return res.json({ status: 'error', message: '卡密已被冻结' }); }
 
         if (lic.machine_id && cleanMachineId(lic.machine_id) !== rawMachineId) {
             await logUnauthorized(rawMachineId, lic.code, 'bind_other_machine', module);
@@ -276,15 +251,31 @@ app.post('/api/license/bind', async (req, res) => {
 
         const isPerm = lic.duration_days >= 99999;
         let expTime = Number(lic.expire_time) || 0;
+        let firstBind = Number(lic.first_bind_time) || 0;
 
         if (!lic.machine_id) {
-            expTime = isPerm ? 4102444800 : (now + (lic.duration_days * 86400));
+            // 首次绑定
+            if (firstBind <= 0) {
+                firstBind = now;
+            }
+            if (isPerm) {
+                expTime = 4102444800;
+            } else {
+                // 防换电脑续命：从 first_bind_time 算，不是 now
+                const totalSec = getTotalSeconds(lic.duration_days, lic.duration_hours);
+                expTime = firstBind + totalSec;
+            }
+
             await pool.query(
-                'UPDATE licenses SET machine_id = $1, bind_time = $2, expire_time = $3, last_verify_time = $4 WHERE code = $5',
-                [rawMachineId, now, expTime, now, lic.code]
+                'UPDATE licenses SET machine_id = $1, bind_time = $2, first_bind_time = $3, expire_time = $4, last_verify_time = $5 WHERE code = $6',
+                [rawMachineId, now, firstBind, expTime, now, lic.code]
             );
         } else {
             await pool.query('UPDATE licenses SET last_verify_time = $1 WHERE code = $2', [now, lic.code]);
+        }
+
+        if (!isPerm && expTime < now) {
+            return res.json({ status: 'error', message: '卡密已过期' });
         }
 
         const daysLeft = isPerm ? 99999 : Math.max(0, Math.ceil((expTime - now) / 86400));
@@ -294,7 +285,7 @@ app.post('/api/license/bind', async (req, res) => {
             code: lic.code,
             expireTime: expTime,
             daysLeft: daysLeft,
-            message: isPerm ? '永久有效授权激活成功' : '激活成功，有效天数 ' + lic.duration_days + ' 天'
+            message: isPerm ? '永久有效授权激活成功' : '激活成功，剩余 ' + daysLeft + ' 天'
         });
     } catch (e) {
         console.error('[bind] 错误:', e.message);
@@ -313,7 +304,27 @@ function adminAuth(req, res, next) {
 
 app.get('/api/master-serein-8899/list', adminAuth, async (req, res) => {
     try {
-        const r = await pool.query('SELECT * FROM licenses ORDER BY created_time DESC LIMIT 1000');
+        const search = (req.query.search || '').trim();
+        const module = (req.query.module || '').trim();
+
+        let sql = 'SELECT * FROM licenses WHERE 1=1';
+        const params = [];
+        let idx = 1;
+
+        if (search) {
+            sql += ' AND (code ILIKE $' + idx + ' OR remark ILIKE $' + idx + ' OR machine_id ILIKE $' + idx + ')';
+            params.push('%' + search + '%');
+            idx++;
+        }
+        if (module) {
+            sql += ' AND module = $' + idx;
+            params.push(module);
+            idx++;
+        }
+
+        sql += ' ORDER BY created_time DESC LIMIT 1000';
+
+        const r = await pool.query(sql, params);
         res.json({ status: 'success', data: r.rows });
     } catch (e) {
         console.error('[admin/list] 错误:', e.message);
@@ -332,27 +343,15 @@ app.get('/api/master-serein-8899/online', adminAuth, async (req, res) => {
             'FROM licenses WHERE last_verify_time >= $1 ORDER BY last_verify_time DESC',
             [onlineThreshold]
         );
-        const recentResult = await pool.query(
-            'SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1',
-            [recentThreshold]
-        );
-        const totalBoundResult = await pool.query(
-            'SELECT COUNT(*) AS cnt FROM licenses WHERE machine_id IS NOT NULL'
-        );
+        const recentResult = await pool.query('SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1', [recentThreshold]);
+        const totalBoundResult = await pool.query('SELECT COUNT(*) AS cnt FROM licenses WHERE machine_id IS NOT NULL');
         const totalResult = await pool.query('SELECT COUNT(*) AS cnt FROM licenses');
         const totalAssistant = await pool.query("SELECT COUNT(*) AS cnt FROM licenses WHERE module = 'assistant'");
         const totalViolence = await pool.query("SELECT COUNT(*) AS cnt FROM licenses WHERE module = 'violence'");
-        const onlineAssistant = await pool.query(
-            "SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1 AND module = 'assistant'",
-            [onlineThreshold]
-        );
-        const onlineViolence = await pool.query(
-            "SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1 AND module = 'violence'",
-            [onlineThreshold]
-        );
+        const onlineAssistant = await pool.query("SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1 AND module = 'assistant'", [onlineThreshold]);
+        const onlineViolence = await pool.query("SELECT COUNT(*) AS cnt FROM licenses WHERE last_verify_time >= $1 AND module = 'violence'", [onlineThreshold]);
         const unauthResult = await pool.query(
-            'SELECT machine_id, code, reason, module, attempt_time FROM unauthorized_logs ' +
-            'WHERE attempt_time >= $1 ORDER BY attempt_time DESC LIMIT 50',
+            'SELECT machine_id, code, reason, module, attempt_time FROM unauthorized_logs WHERE attempt_time >= $1 ORDER BY attempt_time DESC LIMIT 50',
             [recentThreshold]
         );
 
@@ -375,24 +374,34 @@ app.get('/api/master-serein-8899/online', adminAuth, async (req, res) => {
     }
 });
 
+// 生成卡密（支持 试用卡 = hours）
 app.post('/api/master-serein-8899/generate', adminAuth, async (req, res) => {
     try {
         const now = Math.floor(Date.now() / 1000);
         const count = Math.min(Math.max(1, parseInt(req.body.count || 1)), 100);
-        const days = parseInt(req.body.days || 30);
+        const duration = String(req.body.duration || '30').trim();
         const remark = (req.body.remark || '').trim();
         const module = cleanModule(req.body.module);
         const generated = [];
 
+        let durationDays = 30, durationHours = 0;
+        if (duration.startsWith('h')) {
+            durationHours = parseInt(duration.substring(1)) || 1;
+            durationDays = 0;
+        } else {
+            durationDays = parseInt(duration) || 30;
+            durationHours = 0;
+        }
+
         for (let i = 0; i < count; i++) {
             const code = generateLicenseCode();
             await pool.query(
-                'INSERT INTO licenses (code, duration_days, remark, module, created_time) VALUES ($1, $2, $3, $4, $5)',
-                [code, days, remark, module, now]
+                'INSERT INTO licenses (code, duration_days, duration_hours, remark, module, created_time) VALUES ($1, $2, $3, $4, $5, $6)',
+                [code, durationDays, durationHours, remark, module, now]
             );
             generated.push(code);
         }
-        console.log('[admin/generate] 生成', generated.length, '个卡密，module=', module);
+        console.log('[admin/generate] 生成', generated.length, '个卡密, module=', module, '时长:', durationDays + '天' + durationHours + '小时');
         res.json({ status: 'success', generated: generated });
     } catch (e) {
         console.error('[admin/generate] 错误:', e.message);
@@ -400,10 +409,74 @@ app.post('/api/master-serein-8899/generate', adminAuth, async (req, res) => {
     }
 });
 
+// 批量延期
+app.post('/api/master-serein-8899/extend', adminAuth, async (req, res) => {
+    try {
+        const days = parseInt(req.body.days || 0);
+        const codes = req.body.codes || [];   // 空 = 全部
+        if (days === 0) return res.json({ status: 'error', message: '延期天数不能为 0' });
+
+        let result;
+        if (codes.length === 0) {
+            // 全部延期
+            result = await pool.query(
+                'UPDATE licenses SET ' +
+                'first_bind_time = CASE WHEN first_bind_time > 0 THEN first_bind_time ELSE 0 END, ' +
+                'expire_time = CASE WHEN duration_days >= 99999 THEN 4102444800 ELSE COALESCE(expire_time, 0) + $1 END ' +
+                'WHERE duration_days < 99999',
+                [days * 86400]
+            );
+        } else {
+            const placeholders = codes.map((_, i) => '$' + (i + 2)).join(',');
+            result = await pool.query(
+                'UPDATE licenses SET expire_time = CASE WHEN duration_days >= 99999 THEN 4102444800 ELSE COALESCE(expire_time, 0) + $1 END ' +
+                'WHERE code IN (' + placeholders + ') AND duration_days < 99999',
+                [days * 86400].concat(codes)
+            );
+        }
+
+        res.json({ status: 'success', message: '已延期 ' + result.rowCount + ' 张卡密（+' + days + '天）', affected: result.rowCount });
+    } catch (e) {
+        console.error('[admin/extend] 错误:', e.message);
+        res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
+// 批量解绑
+app.post('/api/master-serein-8899/batch-unbind', adminAuth, async (req, res) => {
+    try {
+        const codes = req.body.codes || [];
+        if (codes.length === 0) return res.json({ status: 'error', message: '未选择卡密' });
+        const placeholders = codes.map((_, i) => '$' + (i + 1)).join(',');
+        const result = await pool.query(
+            'UPDATE licenses SET machine_id = NULL, expire_time = 0, bind_time = 0, first_bind_time = 0 WHERE code IN (' + placeholders + ')',
+            codes
+        );
+        res.json({ status: 'success', message: '已解绑 ' + result.rowCount + ' 张卡密', affected: result.rowCount });
+    } catch (e) {
+        console.error('[admin/batch-unbind] 错误:', e.message);
+        res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
+// ★ 批量删除
+app.post('/api/master-serein-8899/batch-delete', adminAuth, async (req, res) => {
+    try {
+        const codes = req.body.codes || [];
+        if (codes.length === 0) return res.json({ status: 'error', message: '未选择卡密' });
+        const placeholders = codes.map((_, i) => '$' + (i + 1)).join(',');
+        const result = await pool.query('DELETE FROM licenses WHERE code IN (' + placeholders + ')', codes);
+        res.json({ status: 'success', message: '已删除 ' + result.rowCount + ' 张卡密', affected: result.rowCount });
+    } catch (e) {
+        console.error('[admin/batch-delete] 错误:', e.message);
+        res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
 app.post('/api/master-serein-8899/unbind', adminAuth, async (req, res) => {
     try {
         await pool.query(
-            'UPDATE licenses SET machine_id = NULL, expire_time = 0, bind_time = 0 WHERE code = $1',
+            'UPDATE licenses SET machine_id = NULL, expire_time = 0, bind_time = 0, first_bind_time = 0 WHERE code = $1',
             [cleanCode(req.body.code)]
         );
         res.json({ status: 'success', message: '已解绑' });
@@ -423,6 +496,18 @@ app.post('/api/master-serein-8899/delete', adminAuth, async (req, res) => {
     }
 });
 
+app.post('/api/master-serein-8899/ban', adminAuth, async (req, res) => {
+    try {
+        const code = cleanCode(req.body.code);
+        const banned = req.body.banned ? 1 : 0;
+        await pool.query('UPDATE licenses SET is_banned = $1 WHERE code = $2', [banned, code]);
+        res.json({ status: 'success', message: banned ? '已冻结' : '已解冻' });
+    } catch (e) {
+        console.error('[admin/ban] 错误:', e.message);
+        res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
 app.post('/api/master-serein-8899/cleanup', adminAuth, async (req, res) => {
     try {
         await cleanupExpiredLicenses();
@@ -432,7 +517,6 @@ app.post('/api/master-serein-8899/cleanup', adminAuth, async (req, res) => {
     }
 });
 
-// ==================== 管理后台页面 ====================
 app.get('/master-control-serein-8899', (req, res) => {
     try {
         const filePath = path.join(__dirname, 'admin.html');
@@ -445,7 +529,6 @@ app.get('/master-control-serein-8899', (req, res) => {
     }
 });
 
-// ==================== 健康检查 ====================
 app.get('/', (req, res) => res.send('Deskrawl License Server OK'));
 app.get('/health', async (req, res) => {
     try {
@@ -456,14 +539,10 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ==================== 启动 ====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('[Server] 已启动，端口 ' + PORT);
-
-    // 等待 2 秒，让 Postgres 有时间准备
     await new Promise(r => setTimeout(r, 2000));
-
     await initDatabase();
     await cleanupExpiredLicenses();
     setInterval(cleanupExpiredLicenses, 3600 * 1000);
