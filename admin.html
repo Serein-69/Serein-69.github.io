@@ -20,6 +20,8 @@ button.red { background: #dc2626; }
 button.red:hover { background: #b91c1c; }
 button.orange { background: #b45309; }
 button.orange:hover { background: #92400e; }
+button.purple { background: #7c3aed; }
+button.purple:hover { background: #6d28d9; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 th, td { padding: 10px; text-align: left; border-bottom: 1px solid #1f2937; font-size: 13px; }
 th { color: #94a3b8; }
@@ -30,7 +32,9 @@ th { color: #94a3b8; }
 .online-num { color: #10b981; font-size: 22px; font-weight: 800; font-family: monospace; }
 .stat-label { color: #94a3b8; font-size: 12px; }
 .stat-value { color: #f8fafc; font-size: 16px; font-weight: 700; font-family: monospace; margin-left: 6px; }
-.stat-card { display: inline-block; background: #0c1322; border: 1px solid #1f2937; border-radius: 6px; padding: 10px 16px; margin-right: 12px; }
+.stat-card { display: inline-block; background: #0c1322; border: 1px solid #1f2937; border-radius: 6px; padding: 10px 16px; margin-right: 12px; margin-bottom: 8px; }
+.badge-assistant { background: #065f46; color: #6ee7b7; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 700; }
+.badge-violence { background: #7f1d1d; color: #fca5a5; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -50,25 +54,33 @@ th { color: #94a3b8; }
 </div>
 
 <!-- 实时在线统计 -->
-<div class="panel" id="onlinePanel">
+<div class="panel">
     <h3>实时在线统计</h3>
 
     <div class="row">
         <div class="stat-card">
-            <div class="stat-label">在线</div>
+            <div class="stat-label">总在线</div>
             <div><span id="onlineCount" class="online-num">0</span> <span class="stat-label">人</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">助手在线</div>
+            <div class="stat-value" style="color:#6ee7b7;" id="onlineAssistant">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">暴力在线</div>
+            <div class="stat-value" style="color:#fca5a5;" id="onlineViolence">0</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">1小时内活跃</div>
             <div class="stat-value" id="recentCount">0</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">已激活</div>
-            <div class="stat-value" id="totalBound">0</div>
-        </div>
-        <div class="stat-card">
             <div class="stat-label">总卡密</div>
             <div class="stat-value" id="totalCount">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">助手卡 / 暴力卡</div>
+            <div class="stat-value"><span style="color:#6ee7b7;" id="totalAssistant">0</span> / <span style="color:#fca5a5;" id="totalViolence">0</span></div>
         </div>
     </div>
 
@@ -80,6 +92,7 @@ th { color: #94a3b8; }
     <table>
         <thead>
             <tr>
+                <th>模块</th>
                 <th>卡密</th>
                 <th>机器码</th>
                 <th>备注</th>
@@ -87,7 +100,7 @@ th { color: #94a3b8; }
             </tr>
         </thead>
         <tbody id="onlineList">
-            <tr><td colspan="4" style="text-align:center;color:#64748b;">加载中...</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:#64748b;">加载中...</td></tr>
         </tbody>
     </table>
 
@@ -98,6 +111,7 @@ th { color: #94a3b8; }
     <table>
         <thead>
             <tr>
+                <th>模块</th>
                 <th>机器码</th>
                 <th>尝试的卡密</th>
                 <th>原因</th>
@@ -105,7 +119,7 @@ th { color: #94a3b8; }
             </tr>
         </thead>
         <tbody id="unauthList">
-            <tr><td colspan="4" style="text-align:center;color:#64748b;">加载中...</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:#64748b;">加载中...</td></tr>
         </tbody>
     </table>
 </div>
@@ -114,7 +128,12 @@ th { color: #94a3b8; }
 <div class="panel">
     <h3>批量生成卡密</h3>
     <div class="row">
-        <input type="number" id="genCount" value="1" min="1" max="100" style="width:80px;" placeholder="数量">
+        <label style="color:#94a3b8;font-size:13px;">模块:</label>
+        <select id="genModule">
+            <option value="assistant" selected>助手版</option>
+            <option value="violence">暴力版</option>
+        </select>
+        <label style="color:#94a3b8;font-size:13px;">时长:</label>
         <select id="genDays">
             <option value="1">天卡 (1天)</option>
             <option value="7">周卡 (7天)</option>
@@ -123,6 +142,7 @@ th { color: #94a3b8; }
             <option value="365">年卡 (365天)</option>
             <option value="99999">永久卡</option>
         </select>
+        <input type="number" id="genCount" value="1" min="1" max="100" style="width:80px;" placeholder="数量">
         <input type="text" id="genRemark" placeholder="备注（可选）" style="width:200px;">
         <button onclick="genCodes()" class="green">生成</button>
     </div>
@@ -131,9 +151,18 @@ th { color: #94a3b8; }
 <!-- 卡密列表 -->
 <div class="panel">
     <h3>卡密列表</h3>
+    <div class="row">
+        <label style="color:#94a3b8;font-size:13px;">筛选:</label>
+        <select id="filterModule" onchange="loadList()">
+            <option value="">全部</option>
+            <option value="assistant">只看助手版</option>
+            <option value="violence">只看暴力版</option>
+        </select>
+    </div>
     <table>
         <thead>
             <tr>
+                <th>模块</th>
                 <th>卡密</th>
                 <th>时长</th>
                 <th>机器码</th>
@@ -154,6 +183,11 @@ function getPwd() { return document.getElementById('pwd').value.trim(); }
 function savePwd() { localStorage.setItem('deskrawl_admin_pwd', getPwd()); log('密码已保存'); }
 function log(msg) { document.getElementById('log').innerText = '[' + new Date().toLocaleTimeString() + '] ' + msg; }
 
+function moduleBadge(m) {
+    if (m === 'violence') return '<span class="badge-violence">暴力版</span>';
+    return '<span class="badge-assistant">助手版</span>';
+}
+
 window.addEventListener('load', function() {
     var saved = localStorage.getItem('deskrawl_admin_pwd');
     if (saved) {
@@ -163,7 +197,6 @@ window.addEventListener('load', function() {
     }
 });
 
-// 每 30 秒自动刷新在线
 setInterval(function() {
     if (getPwd()) loadOnline();
 }, 30000);
@@ -186,8 +219,15 @@ async function loadList() {
 function renderList(arr) {
     var tb = document.getElementById('list');
     var stat = document.getElementById('stat');
+    var filter = document.getElementById('filterModule').value;
+
+    // 筛选
+    if (filter) {
+        arr = arr.filter(function(item) { return item.module === filter; });
+    }
+
     if (!arr || arr.length === 0) {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;">暂无卡密，先生成一批</td></tr>';
+        tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">暂无卡密</td></tr>';
         if (stat) stat.innerText = '总计: 0';
         return;
     }
@@ -205,6 +245,7 @@ function renderList(arr) {
 
         var tr = document.createElement('tr');
         tr.innerHTML =
+            '<td>' + moduleBadge(item.module) + '</td>' +
             '<td class="code-cell">' + item.code + '</td>' +
             '<td>' + days + '</td>' +
             '<td style="font-size:11px;font-family:monospace;">' + hwid + '</td>' +
@@ -223,18 +264,19 @@ function renderList(arr) {
 async function genCodes() {
     var pwd = getPwd();
     if (!pwd) return log('请先输入管理员密码');
-    var count = document.getElementById('genCount').value;
+    var module = document.getElementById('genModule').value;
     var days = document.getElementById('genDays').value;
+    var count = document.getElementById('genCount').value;
     var remark = document.getElementById('genRemark').value;
     try {
         var r = await fetch('/api/master-serein-8899/generate', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + pwd, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ count: count, days: days, remark: remark })
+            body: JSON.stringify({ count: count, days: days, module: module, remark: remark })
         });
         var d = await r.json();
         if (d.status !== 'success') return log('生成失败：' + d.message);
-        log('成功生成 ' + d.generated.length + ' 个卡密：' + d.generated.join(', '));
+        log('成功生成 ' + d.generated.length + ' 个[' + (module === 'violence' ? '暴力版' : '助手版') + ']卡密：' + d.generated.join(', '));
         loadList();
     } catch (e) { log('生成失败：' + e.message); }
 }
@@ -264,7 +306,7 @@ async function delCode(code) {
     loadList();
 }
 
-// ==================== 清理过期卡密 ====================
+// ==================== 清理 ====================
 async function cleanupExpired() {
     if (!confirm('确认清理过期超过 30 天的卡密？\n\n规则：\n1. 永久卡不受影响\n2. 未绑定卡密不受影响\n3. 只有已绑定且过期超过 30 天的会被删除')) return;
     var pwd = getPwd();
@@ -299,18 +341,22 @@ async function loadOnline() {
 
         document.getElementById('onlineCount').innerText = d.online_count;
         document.getElementById('recentCount').innerText = d.recent_count;
-        document.getElementById('totalBound').innerText = d.total_bound;
         document.getElementById('totalCount').innerText = d.total;
+        document.getElementById('totalAssistant').innerText = d.total_assistant;
+        document.getElementById('totalViolence').innerText = d.total_violence;
+        document.getElementById('onlineAssistant').innerText = d.online_assistant;
+        document.getElementById('onlineViolence').innerText = d.online_violence;
 
         // 在线列表
         var tb = document.getElementById('onlineList');
         tb.innerHTML = '';
         if (!d.online_list || d.online_list.length === 0) {
-            tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#64748b;">暂无在线客户端</td></tr>';
+            tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;">暂无在线客户端</td></tr>';
         } else {
             d.online_list.forEach(function(item) {
                 var tr = document.createElement('tr');
                 tr.innerHTML =
+                    '<td>' + moduleBadge(item.module) + '</td>' +
                     '<td class="code-cell">' + item.code + '</td>' +
                     '<td style="font-size:11px;font-family:monospace;">' + (item.machine_id || '-') + '</td>' +
                     '<td>' + (item.remark || '-') + '</td>' +
@@ -323,7 +369,7 @@ async function loadOnline() {
         var utb = document.getElementById('unauthList');
         utb.innerHTML = '';
         if (!d.unauthorized_list || d.unauthorized_list.length === 0) {
-            utb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#64748b;">最近 1 小时无未授权尝试</td></tr>';
+            utb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;">最近 1 小时无未授权尝试</td></tr>';
         } else {
             d.unauthorized_list.forEach(function(item) {
                 var tr = document.createElement('tr');
@@ -331,11 +377,12 @@ async function loadOnline() {
                 if (reasonText === 'not_found') reasonText = '卡密不存在';
                 else if (reasonText === 'banned') reasonText = '已冻结';
                 else if (reasonText === 'expired') reasonText = '已过期';
-                else if (reasonText === 'bind_not_found') reasonText = '绑定-卡密不存在';
+                else if (reasonText === 'bind_not_found') reasonText = '绑定-不存在';
                 else if (reasonText === 'bind_banned') reasonText = '绑定-已冻结';
                 else if (reasonText === 'bind_other_machine') reasonText = '绑定-已在其他电脑';
 
                 tr.innerHTML =
+                    '<td>' + moduleBadge(item.module) + '</td>' +
                     '<td style="font-size:11px;font-family:monospace;">' + (item.machine_id || '-') + '</td>' +
                     '<td style="font-size:11px;font-family:monospace;">' + (item.code || '-') + '</td>' +
                     '<td style="color:#fbbf24;">' + reasonText + '</td>' +
