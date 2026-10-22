@@ -159,7 +159,6 @@ setInterval(function() { if (getPwd()) loadOnline(); }, 30000);
 
 var _lastData = [];
 
-// ==================== 列表 ====================
 async function loadList() {
     var pwd = getPwd();
     if (!pwd) return log('请先输入管理员密码');
@@ -252,7 +251,6 @@ function toggleAll(checked) {
     updateSelCount();
 }
 
-// ==================== 生成卡密 ====================
 async function genCodes() {
     var pwd = getPwd();
     if (!pwd) return log('请先输入管理员密码');
@@ -273,7 +271,6 @@ async function genCodes() {
     } catch (e) { log('生成失败：' + e.message); }
 }
 
-// ==================== 单个操作 ====================
 async function unbind(code) {
     if (!confirm('确认解绑 ' + code + '？')) return;
     var pwd = getPwd();
@@ -309,7 +306,6 @@ async function toggleBan(code, banned) {
     loadList();
 }
 
-// ==================== 批量操作 ====================
 async function batchExtend() {
     var codes = getSelectedCodes();
     if (codes.length === 0) return alert('请先选择卡密');
@@ -366,7 +362,6 @@ async function batchDelete() {
     } catch (e) { log('失败：' + e.message); }
 }
 
-// ==================== 清理 ====================
 async function cleanupExpired() {
     if (!confirm('确认清理过期超过 30 天的卡密？')) return;
     var pwd = getPwd();
@@ -381,7 +376,6 @@ async function cleanupExpired() {
     } catch (e) { log('清理失败：' + e.message); }
 }
 
-// ==================== 导出 CSV ====================
 function exportCSV() {
     if (!_lastData || _lastData.length === 0) return alert('无可导出数据');
     var lines = ['模块,卡密,时长,机器码,绑定时间,到期时间,备注,创建时间,状态'];
@@ -406,7 +400,7 @@ function exportCSV() {
         ].join(','));
     });
 
-    var csv = '\ufeff' + lines.join('\n');   // BOM 让 Excel 识别 UTF-8
+    var csv = '\ufeff' + lines.join('\n');
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -419,7 +413,6 @@ function exportCSV() {
     log('已导出 ' + _lastData.length + ' 条到 CSV');
 }
 
-// ==================== 在线统计 ====================
 async function loadOnline() {
     var pwd = getPwd();
     if (!pwd) return;
