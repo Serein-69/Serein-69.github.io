@@ -72,13 +72,11 @@ async function withRetry(fn, label, maxAttempts = 5, delayMs = 5000) {
     }
 }
 
-// 计算总秒数（永久卡返回 -1）
 function getTotalSeconds(durationDays, durationHours) {
     if (durationDays >= 99999) return -1;
     return (durationDays || 0) * 86400 + (durationHours || 0) * 3600;
 }
 
-// ==================== 初始化 ====================
 async function initDatabase() {
     const url = process.env.DATABASE_URL;
     console.log('[DB] 检查 DATABASE_URL...');
@@ -93,9 +91,9 @@ async function initDatabase() {
                 'code VARCHAR(32) PRIMARY KEY, ' +
                 'machine_id VARCHAR(64), ' +
                 'duration_days INTEGER NOT NULL DEFAULT 30, ' +
-                'duration_hours INTEGER DEFAULT 0, ' +      // 试用卡
+                'duration_hours INTEGER DEFAULT 0, ' +
                 'bind_time BIGINT, ' +
-                'first_bind_time BIGINT DEFAULT 0, ' +      // 防换电脑续命
+                'first_bind_time BIGINT DEFAULT 0, ' +
                 'expire_time BIGINT, ' +
                 'last_verify_time BIGINT, ' +
                 'is_banned INTEGER DEFAULT 0, ' +
@@ -105,7 +103,6 @@ async function initDatabase() {
                 ')'
             );
 
-            // 兼容已有表
             try { await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS module VARCHAR(20) DEFAULT 'assistant'"); } catch (e) { }
             try { await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS duration_hours INTEGER DEFAULT 0"); } catch (e) { }
             try { await pool.query("ALTER TABLE licenses ADD COLUMN IF NOT EXISTS first_bind_time BIGINT DEFAULT 0"); } catch (e) { }
@@ -138,7 +135,6 @@ async function initDatabase() {
     }
 }
 
-// ==================== 清理 ====================
 async function cleanupExpiredLicenses() {
     try {
         const now = Math.floor(Date.now() / 1000);
@@ -175,7 +171,6 @@ async function logUnauthorized(machineId, code, reason, module) {
     } catch (e) { console.error('[unauth-log] 错误:', e.message); }
 }
 
-// ==================== 用户端 API ====================
 app.post('/api/license/verify', async (req, res) => {
     try {
         const now = Math.floor(Date.now() / 1000);
@@ -254,14 +249,12 @@ app.post('/api/license/bind', async (req, res) => {
         let firstBind = Number(lic.first_bind_time) || 0;
 
         if (!lic.machine_id) {
-            // 首次绑定
             if (firstBind <= 0) {
                 firstBind = now;
             }
             if (isPerm) {
                 expTime = 4102444800;
             } else {
-                // 防换电脑续命：从 first_bind_time 算，不是 now
                 const totalSec = getTotalSeconds(lic.duration_days, lic.duration_hours);
                 expTime = firstBind + totalSec;
             }
@@ -293,7 +286,6 @@ app.post('/api/license/bind', async (req, res) => {
     }
 });
 
-// ==================== 管理员 API ====================
 function adminAuth(req, res, next) {
     const auth = req.headers.authorization || '';
     const token = auth.replace('Bearer ', '').trim();
@@ -374,7 +366,6 @@ app.get('/api/master-serein-8899/online', adminAuth, async (req, res) => {
     }
 });
 
-// 生成卡密（支持 试用卡 = hours）
 app.post('/api/master-serein-8899/generate', adminAuth, async (req, res) => {
     try {
         const now = Math.floor(Date.now() / 1000);
@@ -409,16 +400,14 @@ app.post('/api/master-serein-8899/generate', adminAuth, async (req, res) => {
     }
 });
 
-// 批量延期
 app.post('/api/master-serein-8899/extend', adminAuth, async (req, res) => {
     try {
         const days = parseInt(req.body.days || 0);
-        const codes = req.body.codes || [];   // 空 = 全部
+        const codes = req.body.codes || [];
         if (days === 0) return res.json({ status: 'error', message: '延期天数不能为 0' });
 
         let result;
         if (codes.length === 0) {
-            // 全部延期
             result = await pool.query(
                 'UPDATE licenses SET ' +
                 'first_bind_time = CASE WHEN first_bind_time > 0 THEN first_bind_time ELSE 0 END, ' +
@@ -442,7 +431,6 @@ app.post('/api/master-serein-8899/extend', adminAuth, async (req, res) => {
     }
 });
 
-// 批量解绑
 app.post('/api/master-serein-8899/batch-unbind', adminAuth, async (req, res) => {
     try {
         const codes = req.body.codes || [];
@@ -459,7 +447,6 @@ app.post('/api/master-serein-8899/batch-unbind', adminAuth, async (req, res) => 
     }
 });
 
-// ★ 批量删除
 app.post('/api/master-serein-8899/batch-delete', adminAuth, async (req, res) => {
     try {
         const codes = req.body.codes || [];
